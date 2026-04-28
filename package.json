@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri",
     "test": "npm run test:contracts",
-    "test:contracts": "python3 -m pytest python/tests/test_contract_schema.py -q"
+    "test:contracts": "python3 -m pytest python/tests/test_contract_schema.py -q",
+    "test:ui": "node --experimental-strip-types scripts/test_ui.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"

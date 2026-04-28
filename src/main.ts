@@ -1,16 +1,193 @@
 import "./styles.css";
+import type { AppState, AppEvent, OverlayCandidate } from "./hotkeyState.ts";
+import { reduce } from "./hotkeyState.ts";
+import { renderCandidates } from "./render.ts";
+
+let state: AppState = { type: "Idle", chord: "Ctrl+Alt+Space" };
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
-if (app) {
-  app.innerHTML = `
+function render() {
+  if (!app) return;
+  
+  let content = `
     <section class="shell">
       <p class="eyebrow">FreeLip internal MVP</p>
-      <h1>Dev scaffold ready</h1>
-      <p>
-        Tauri, Rust, Python, and shared contract schemas are scaffolded for the
-        local Windows VSR research loop. Runtime features land in later tasks.
-      </p>
+      <h1>Hotkey Overlay</h1>
+      <div class="state-indicator status-${state.type.toLowerCase()}">
+        Status: <strong>${state.type}</strong>
+      </div>
+  `;
+
+  if (state.type === "Idle") {
+    content += `<p class="instructions">Press <code>${state.chord}</code> to start recording.</p>`;
+  } else if (state.type === "CollisionRemapRequired") {
+    content += `
+      <div class="alert error">
+        <p><strong>Hotkey Collision:</strong> <code>${state.defaultChord}</code> is already in use.</p>
+        <p>You must configure a replacement hotkey before capture can start.</p>
+        <button id="btn-remap">Configure replacement (Ctrl+Alt+L)</button>
+      </div>
+    `;
+  } else if (state.type === "Recording") {
+    content += `
+      <div class="recording-pulse"></div>
+      <p class="instructions">Listening... Press <code>${state.chord}</code> again to stop.</p>
+    `;
+  } else if (state.type === "Processing") {
+    content += `
+      <p class="instructions">Processing visual speech... Please wait.</p>
+      <div class="loader"></div>
+    `;
+  } else if (state.type === "ShowingCandidates") {
+    if (state.lowQuality) {
+      content += `
+        <div class="alert warning">
+          <p><strong>Low Quality Visuals:</strong> Recognition might be inaccurate.</p>
+        </div>
+      `;
+    }
+
+    if (!state.autoInsertThresholdMet) {
+      content += `
+        <div class="alert info">
+          <p><strong>Auto-insert disabled:</strong> Confidence threshold not met. Manual selection required.</p>
+        </div>
+      `;
+    }
+
+    content += `
+      <div class="candidates-overlay">
+        <h3>Candidates</h3>
+        <ol class="candidates-list"></ol>
+        <p class="overlay-help">Press <code>1-5</code> to select, <code>Esc</code> to cancel.</p>
+      </div>
+    `;
+  }
+
+  content += `
+      <div class="dev-controls">
+        <button id="dev-trigger-recording">Trigger: Recording</button>
+        <button id="dev-trigger-collision">Trigger: Collision</button>
+        <button id="dev-trigger-candidates-high">Trigger: Candidates (High Quality, Auto)</button>
+        <button id="dev-trigger-candidates-low">Trigger: Candidates (Low Quality, Manual)</button>
+      </div>
     </section>
   `;
+  
+  app.innerHTML = content;
+  
+  if (state.type === "ShowingCandidates") {
+    const list = app.querySelector(".candidates-list");
+    if (list) {
+      renderCandidates(list, state.candidates);
+    }
+  }
+
+  attachEvents();
 }
+
+function dispatch(event: AppEvent) {
+  const result = reduce(state, event);
+  state = result.state;
+  
+  if (result.action.type === "InsertCandidate") {
+    showToast(`Inserted: ${result.action.candidate.text}`);
+  } else if (result.action.type === "Cancel") {
+    showToast("Operation cancelled.");
+  }
+  
+  render();
+}
+
+function attachEvents() {
+  const remapBtn = document.getElementById("btn-remap");
+  if (remapBtn) {
+    remapBtn.addEventListener("click", () => dispatch({ type: "Remapped", newChord: "Ctrl+Alt+L" }));
+  }
+
+  const items = document.querySelectorAll(".candidate-item");
+  items.forEach(item => {
+    item.addEventListener("click", (e) => {
+      const idxStr = (e.currentTarget as HTMLElement).getAttribute("data-index");
+      if (idxStr !== null) {
+        dispatch({ type: "MouseSelected", index: parseInt(idxStr, 10) });
+      }
+    });
+  });
+
+  const devRec = document.getElementById("dev-trigger-recording");
+  if (devRec) devRec.addEventListener("click", () => {
+    dispatch({ type: "HotkeyPressed" });
+  });
+
+  const devCol = document.getElementById("dev-trigger-collision");
+  if (devCol) devCol.addEventListener("click", () => {
+    dispatch({ type: "CollisionDetected" });
+  });
+
+  const testCandidates: OverlayCandidate[] = [
+    { text: "Option A", source: "vsr" },
+    { text: "Option B", source: "llm_rerank" },
+    { text: "Option C", source: "dictionary" },
+    { text: "Option D", source: "vsr" },
+    { text: "Option E", source: "vsr" }
+  ];
+
+  const devCandHigh = document.getElementById("dev-trigger-candidates-high");
+  if (devCandHigh) devCandHigh.addEventListener("click", () => {
+    dispatch({ type: "ProcessingComplete", candidates: testCandidates, lowQuality: false, autoInsertThresholdMet: true });
+  });
+
+  const devCandLow = document.getElementById("dev-trigger-candidates-low");
+  if (devCandLow) devCandLow.addEventListener("click", () => {
+    dispatch({ type: "ProcessingComplete", candidates: testCandidates, lowQuality: true, autoInsertThresholdMet: false });
+  });
+}
+
+function showToast(msg: string) {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+document.addEventListener("keydown", (e) => {
+  // Allow Ctrl+Alt+Space or Ctrl+Alt+L depending on state chord
+  const isDefault = e.ctrlKey && e.altKey && e.code === "Space";
+  const isRemapped = e.ctrlKey && e.altKey && e.code === "KeyL";
+  
+  if (isDefault || isRemapped) {
+    // Only accept if it matches the current expected chord
+    if ((state.type === "Idle" || state.type === "Recording") && state.chord === "Ctrl+Alt+Space" && !isDefault) return;
+    if ((state.type === "Idle" || state.type === "Recording") && state.chord === "Ctrl+Alt+L" && !isRemapped) return;
+
+    e.preventDefault();
+    if (state.type === "Idle") {
+      dispatch({ type: "HotkeyPressed" });
+    } else if (state.type === "Recording") {
+      dispatch({ type: "RecordingStopped" });
+    }
+    return;
+  }
+
+  if (state.type === "ShowingCandidates") {
+    if (e.key >= "1" && e.key <= "5") {
+      e.preventDefault();
+      dispatch({ type: "NumberKeyPressed", index: parseInt(e.key, 10) });
+      return;
+    }
+  }
+
+  if (e.key === "Escape") {
+    if (state.type === "Recording" || state.type === "Processing" || state.type === "ShowingCandidates") {
+      dispatch({ type: "EscapePressed" });
+    }
+  }
+});
+
+render();
