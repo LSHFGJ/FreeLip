@@ -12,6 +12,13 @@ dev = [
   "pytest>=9.0"
 ]
 
+[project.scripts]
+freelip-vsr-sidecar = "freelip_vsr.sidecar:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["freelip_vsr*", "freelip_eval*", "freelip_contracts*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
