@@ -9,7 +9,10 @@
     "tauri": "tauri",
     "test": "npm run test:contracts",
     "test:contracts": "python3 -m pytest python/tests/test_contract_schema.py -q",
-    "test:ui": "node --experimental-strip-types scripts/test_ui.ts"
+    "test:ui": "node --experimental-strip-types scripts/test_ui.ts",
+    "test:debug-bundle": "node scripts/test_debug_bundle.mjs",
+    "sidecar:debug:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/run_sidecar_debug.ps1",
+    "bundle:debug:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/build_debug_bundle.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"
