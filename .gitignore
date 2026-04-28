@@ -1,0 +1,74 @@
+# Node / frontend generated artifacts
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Rust generated artifacts
+target/
+src-tauri/target/
+
+# Python generated artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+python/.venv/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+credentials*.json
+
+# Downloaded models and research datasets
+models/*
+!models/
+!models/*.md
+checkpoints/
+weights/
+pretrained_models/
+datasets/
+data/datasets/
+data/cnvsrc2025/
+data/mavsr2025/
+data/CAS-VSR-S101_zip/
+data/MOV20_zip/
+*.ckpt
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.pkl
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Local-only ROI/debug media and logs
+logs/
+*.log
+roi-debug/
+debug-roi/
+.freelip/roi-debug/
+.freelip/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.npy
+*.npz
+
+# Local orchestration, browser, and runtime state
+.sisyphus/
+.playwright-mcp/
