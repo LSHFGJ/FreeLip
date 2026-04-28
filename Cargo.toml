@@ -1,0 +1,13 @@
+[workspace]
+members = [
+  "src-tauri",
+  "src-tauri/crates/freelip-contracts",
+  "src-tauri/crates/freelip-core"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+rust-version = "1.80"

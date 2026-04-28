@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default dev capability for the FreeLip shell. Runtime permissions are added by later tasks.",
+  "windows": ["main"],
+  "permissions": []
+}
