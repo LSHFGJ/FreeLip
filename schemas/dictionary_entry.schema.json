@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freelip.local/schemas/dictionary_entry.schema.json",
+  "title": "DictionaryEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "entry_id",
+    "surface",
+    "weight",
+    "tags",
+    "updated_at_ms"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "entry_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "surface": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "reading": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "uniqueItems": true,
+      "maxItems": 16
+    },
+    "updated_at_ms": { "type": "integer", "minimum": 0 }
+  }
+}

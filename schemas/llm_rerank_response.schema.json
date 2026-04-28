@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freelip.local/schemas/llm_rerank_response.schema.json",
+  "title": "LlmRerankResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "session_id",
+    "reranked_candidates",
+    "provider",
+    "created_at_ms"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "reranked_candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/candidate" }
+    },
+    "provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "created_at_ms": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "rank",
+        "text",
+        "score",
+        "source",
+        "is_auto_insert_eligible"
+      ],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "rank": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": {
+          "type": "string",
+          "enum": ["vsr", "cnvsrc2025", "dictionary", "llm_rerank", "manual"]
+        },
+        "is_auto_insert_eligible": { "type": "boolean" }
+      }
+    }
+  }
+}

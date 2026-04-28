@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "request_id": "roi-req-0001",
+  "session_id": "session-20260428-0001",
+  "source": {
+    "kind": "camera",
+    "device_id_hash": "sha256:4f2b9a3c",
+    "started_at_ms": 1777339200000
+  },
+  "roi": {
+    "local_ref": "local://roi/session-20260428-0001/normalized.json",
+    "format": "grayscale_u8",
+    "width": 96,
+    "height": 96,
+    "fps": 25,
+    "frame_count": 75,
+    "duration_ms": 3000
+  },
+  "quality_flags": {
+    "schema_version": "1.0.0",
+    "face_found": true,
+    "mouth_landmarks_found": true,
+    "crop_bounds_valid": true,
+    "blur_ok": true,
+    "brightness_ok": true,
+    "pose_ok": true,
+    "occlusion_ok": true,
+    "landmark_confidence": 0.94,
+    "rejection_reasons": []
+  },
+  "requested_at_ms": 1777339203100
+}

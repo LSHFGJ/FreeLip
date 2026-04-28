@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "request_id": "llm-rerank-0001",
+  "session_id": "session-20260428-0001",
+  "reranked_candidates": [
+    {
+      "schema_version": "1.0.0",
+      "rank": 1,
+      "text": "帮我总结这段文字",
+      "score": 0.9,
+      "source": "llm_rerank",
+      "is_auto_insert_eligible": true
+    },
+    {
+      "schema_version": "1.0.0",
+      "rank": 2,
+      "text": "帮我整理这段文字",
+      "score": 0.57,
+      "source": "llm_rerank",
+      "is_auto_insert_eligible": false
+    }
+  ],
+  "provider": "disabled-dev-fixture",
+  "created_at_ms": 1777339204300
+}

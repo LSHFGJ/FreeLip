@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freelip.local/schemas/candidate.schema.json",
+  "title": "Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rank",
+    "text",
+    "score",
+    "source",
+    "is_auto_insert_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "rank": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "source": {
+      "type": "string",
+      "enum": ["vsr", "cnvsrc2025", "dictionary", "llm_rerank", "manual"]
+    },
+    "is_auto_insert_eligible": {
+      "type": "boolean"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0",
+  "entry_id": "dict-0001",
+  "surface": "提示词",
+  "reading": "ti shi ci",
+  "weight": 0.7,
+  "tags": ["ai_prompt", "domain_term"],
+  "updated_at_ms": 1777339200000
+}

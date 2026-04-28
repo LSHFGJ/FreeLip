@@ -1,0 +1,17 @@
+[project]
+name = "freelip-vsr"
+version = "0.1.0"
+description = "FreeLip local VSR sidecar scaffold and shared contract tests."
+requires-python = ">=3.10"
+dependencies = [
+  "jsonschema>=4.23"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

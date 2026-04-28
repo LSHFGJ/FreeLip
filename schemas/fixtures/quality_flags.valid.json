@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "face_found": true,
+  "mouth_landmarks_found": true,
+  "crop_bounds_valid": true,
+  "blur_ok": true,
+  "brightness_ok": true,
+  "pose_ok": true,
+  "occlusion_ok": true,
+  "landmark_confidence": 0.94,
+  "rejection_reasons": []
+}

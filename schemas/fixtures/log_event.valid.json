@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "event_id": "log-0001",
+  "session_id": "session-20260428-0001",
+  "level": "info",
+  "event_type": "candidate_response_received",
+  "message": "Candidate response validated",
+  "timestamp_ms": 1777339205000,
+  "fields": {
+    "request_id": "roi-request-0001",
+    "quality_flags": ["ROI_OK"],
+    "candidate_texts": ["帮我总结这段文字", "帮我整理这段文字"],
+    "candidate_count": 2,
+    "insertion_outcome": "auto_inserted",
+    "undo_outcome": "not_requested",
+    "latency_ms": 930,
+    "model_id": "cnvsrc2025",
+    "failure_reason": null,
+    "roi_debug_metadata_path": ".freelip/roi-debug/roi-request-0001.json"
+  }
+}

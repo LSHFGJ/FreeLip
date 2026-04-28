@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "insert_id": "insert-0001",
+  "session_id": "session-20260428-0001",
+  "candidate_text": "帮我总结这段文字",
+  "target_app": {
+    "process_name": "notepad.exe",
+    "window_title_hash": "sha256:75bd1a"
+  },
+  "method": "clipboard_paste",
+  "inserted_at_ms": 1777339204700,
+  "undo_expires_at_ms": 1777339207700,
+  "status": "inserted"
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "request_id": "llm-rerank-0002",
+  "session_id": "session-20260428-0001",
+  "context_text": "请在编辑器中输入中文 AI 提示词。",
+  "candidates": [
+    {
+      "schema_version": "1.0.0",
+      "rank": 1,
+      "text": "帮我总结这段文字",
+      "score": 0.82,
+      "source": "vsr",
+      "is_auto_insert_eligible": true,
+      "embedding": [0.1, 0.2]
+    }
+  ],
+  "dictionary_terms": [],
+  "max_candidates": 5,
+  "video_bytes": "AAAA",
+  "roi_frames": ["base64-frame"],
+  "image": "base64-image",
+  "embedding": [0.1, 0.2, 0.3]
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "request_id": "roi-req-0001",
+  "session_id": "session-20260428-0001",
+  "model": {
+    "model_id": "cnvsrc2025",
+    "runtime_id": "pytorch-cuda-local",
+    "device": "cuda"
+  },
+  "candidates": [
+    {
+      "schema_version": "1.0.0",
+      "rank": 1,
+      "text": "帮我总结这段文字",
+      "score": 0.82,
+      "source": "cnvsrc2025",
+      "is_auto_insert_eligible": true
+    },
+    {
+      "schema_version": "1.0.0",
+      "rank": 2,
+      "text": "帮我整理这段文字",
+      "score": 0.61,
+      "source": "cnvsrc2025",
+      "is_auto_insert_eligible": false
+    }
+  ],
+  "quality_flags": {
+    "schema_version": "1.0.0",
+    "face_found": true,
+    "mouth_landmarks_found": true,
+    "crop_bounds_valid": true,
+    "blur_ok": true,
+    "brightness_ok": true,
+    "pose_ok": true,
+    "occlusion_ok": true,
+    "landmark_confidence": 0.94,
+    "rejection_reasons": []
+  },
+  "timing_ms": {
+    "roi_received_to_first_candidate": 420,
+    "roi_received_to_final": 930
+  },
+  "created_at_ms": 1777339204050
+}

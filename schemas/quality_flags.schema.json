@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freelip.local/schemas/quality_flags.schema.json",
+  "title": "QualityFlags",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "face_found",
+    "mouth_landmarks_found",
+    "crop_bounds_valid",
+    "blur_ok",
+    "brightness_ok",
+    "pose_ok",
+    "occlusion_ok",
+    "landmark_confidence",
+    "rejection_reasons"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "face_found": { "type": "boolean" },
+    "mouth_landmarks_found": { "type": "boolean" },
+    "crop_bounds_valid": { "type": "boolean" },
+    "blur_ok": { "type": "boolean" },
+    "brightness_ok": { "type": "boolean" },
+    "pose_ok": { "type": "boolean" },
+    "occlusion_ok": { "type": "boolean" },
+    "landmark_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "rejection_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "face_not_found",
+          "mouth_landmarks_missing",
+          "crop_bounds_invalid",
+          "blur_too_high",
+          "brightness_out_of_range",
+          "pose_out_of_range",
+          "mouth_occluded"
+        ]
+      },
+      "uniqueItems": true
+    }
+  }
+}

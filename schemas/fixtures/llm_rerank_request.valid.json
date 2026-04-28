@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "request_id": "llm-rerank-0001",
+  "session_id": "session-20260428-0001",
+  "context_text": "请在编辑器中输入中文 AI 提示词。",
+  "candidates": [
+    {
+      "schema_version": "1.0.0",
+      "rank": 1,
+      "text": "帮我总结这段文字",
+      "score": 0.82,
+      "source": "vsr",
+      "is_auto_insert_eligible": true
+    },
+    {
+      "schema_version": "1.0.0",
+      "rank": 2,
+      "text": "帮我整理这段文字",
+      "score": 0.61,
+      "source": "vsr",
+      "is_auto_insert_eligible": false
+    }
+  ],
+  "dictionary_terms": [
+    {
+      "surface": "提示词",
+      "weight": 0.7,
+      "tags": ["ai_prompt"]
+    }
+  ],
+  "max_candidates": 5
+}

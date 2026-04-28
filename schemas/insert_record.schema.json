@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freelip.local/schemas/insert_record.schema.json",
+  "title": "InsertRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "insert_id",
+    "session_id",
+    "candidate_text",
+    "target_app",
+    "method",
+    "inserted_at_ms",
+    "undo_expires_at_ms",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "insert_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "candidate_text": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "target_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["process_name", "window_title_hash"],
+      "properties": {
+        "process_name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "window_title_hash": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "method": {
+      "type": "string",
+      "enum": ["clipboard_paste", "send_input", "manual_selection"]
+    },
+    "inserted_at_ms": { "type": "integer", "minimum": 0 },
+    "undo_expires_at_ms": { "type": "integer", "minimum": 0 },
+    "status": {
+      "type": "string",
+      "enum": ["inserted", "undone", "failed"]
+    }
+  }
+}
