@@ -54,6 +54,43 @@ npm run dev
 npm run tauri dev
 ```
 
+## Windows debug bundle
+
+For Windows debugging, build a portable debug bundle instead of a production installer:
+
+```powershell
+npm run bundle:debug:win
+```
+
+This creates:
+
+```text
+debug-dist/FreeLip-debug/
+```
+
+Run it with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run-debug.ps1 -FixtureMode
+```
+
+The bundle keeps the app, Python sidecar source, debug config, model placeholder directory, and logs in one folder so failures are easy to inspect. It is unsigned, internal-only, does not include model checkpoints, and should report `CHECKPOINT_MISSING` until approved local model artifacts are installed.
+
+To test approved local checkpoints, set the readiness-gate environment variables before launching the sidecar or app:
+
+```powershell
+$env:FREELIP_CNVSRC2025_CHECKPOINT = "C:\path\to\approved\cnvsrc2025.ckpt"
+$env:FREELIP_MAVSR2025_CHECKPOINT = "C:\path\to\approved\mavsr2025.ckpt"
+```
+
+Useful debug files:
+
+```text
+debug-dist/FreeLip-debug/logs/startup-diagnostics.json
+debug-dist/FreeLip-debug/logs/sidecar-startup-diagnostics.json
+debug-dist/FreeLip-debug/logs/sidecar.log
+```
+
 ## Verification commands
 
 ```bash

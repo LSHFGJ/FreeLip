@@ -41,6 +41,24 @@ FreeLip has `no cloud VSR`. The LLM rerank path is text-only and `text-only LLM 
 
 ## E2E reruns
 
+### Windows debug bundle
+
+The MVP now provides a portable Windows debug bundle path for local troubleshooting. It is not a signed installer and does not include model weights.
+
+```powershell
+npm run bundle:debug:win
+powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run-debug.ps1 -FixtureMode
+```
+
+The generated folder is `debug-dist/FreeLip-debug/`. It contains `app/`, `sidecar/`, `python/`, `config/`, `models/`, and `logs/`. Check `logs/startup-diagnostics.json`, `logs/sidecar-startup-diagnostics.json`, and `logs/sidecar.log` first when debugging startup or sidecar failures. `CHECKPOINT_MISSING` remains expected until local approved checkpoints are installed under the configured model path.
+
+For approved local model artifacts, use the same environment variables as the readiness gate:
+
+```powershell
+$env:FREELIP_CNVSRC2025_CHECKPOINT = "C:\path\to\approved\cnvsrc2025.ckpt"
+$env:FREELIP_MAVSR2025_CHECKPOINT = "C:\path\to\approved\mavsr2025.ckpt"
+```
+
 Run these from the repository root after preparing real Windows hardware and model artifacts:
 
 ```powershell
