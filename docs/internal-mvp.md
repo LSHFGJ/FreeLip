@@ -1,0 +1,76 @@
+# FreeLip internal MVP notes
+
+This document is for `internal research only`. FreeLip is `not production ready`, provides `no commercial rights`, and must not be represented as a validated medical, accessibility, or production dictation product.
+
+## MVP shape
+
+FreeLip is a local Windows desktop VSR MVP. The app shell is Tauri/Rust, the sidecar is Python, and local endpoints bind to `127.0.0.1`. The default activation path is `Ctrl+Alt+Space`, which opens a candidate overlay rather than silently trusting model output.
+
+## Hardware and operating system split
+
+- Target hardware: Windows desktop or laptop with a camera, GPU-capable VSR runtime where available, and local storage for model artifacts.
+- Linux/WSL can run contracts, fixture replay, docs checks, and most Python/Rust tests.
+- Real camera capture requires Windows: `WINDOWS_CAMERA_REQUIRED`.
+- Rust camera wiring is not complete: `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED`.
+- Real Notepad/browser/editor UI automation cannot be proven on Linux/WSL: `WINDOWS_UI_AUTOMATION_REQUIRED`.
+- Full FreeLip hotkey-to-target-app verification still needs app wiring: `WINDOWS_FREELIP_INTEGRATION_REQUIRED`.
+
+## Model fallback and evaluation
+
+The MVP tracks CNVSRC2025 first, then `MAVSR2025` / `CAS-VSR-S101` evaluation work, but this checkout must remain honest when model artifacts are absent. CNVSRC2025 licensing and artifacts are restricted to approved internal research use; they do not grant production, commercial, redistribution, or public-release rights. Missing local checkpoints are reported as `CHECKPOINT_MISSING`; fixture paths may exercise contracts but must not claim real model readiness, Windows E2E success, or Top-5 >= 0.60.
+
+Fallback behavior is contract-first and manual, not automatic runtime switching:
+
+1. Check CNVSRC2025 readiness first with `PYTHONPATH=/home/lshfgj/FreeLip/python python3 -m freelip_vsr.check_model --model cnvsrc2025 --explain`.
+2. If CNVSRC2025 is blocked, manually check `MAVSR2025` with `PYTHONPATH=/home/lshfgj/FreeLip/python python3 -m freelip_vsr.check_model --model mavsr2025 --checkpoint <local-mavsr2025-checkpoint-path> --explain`.
+3. If both are blocked, document `CAS-VSR-S101` as a manual research fallback only; do not claim commercial readiness or public-release evidence.
+4. If model artifacts are missing or runtime probing fails, the sidecar reports the blocker instead of fabricating production candidates.
+5. Fixture replay is allowed only for local verification and must stay labeled as fixture/fallback.
+
+Exact evaluation command:
+
+```bash
+PYTHONPATH=/home/lshfgj/FreeLip/python python3 -m freelip_eval.run --suite fixtures/eval/ai_prompt_short_cn --report .sisyphus/evidence/task-12-top5.json
+```
+
+Current Task 12 fixture report is `top5_usability=0.0`, `target_met=false` due to `CHECKPOINT_MISSING`. This reflects missing local checkpoints and fixture fallback, not real model quality.
+
+## Privacy and retention
+
+FreeLip has `no cloud VSR`. The LLM rerank path is text-only and `text-only LLM rerank disabled by default`. Do not send raw video (`no raw video`), ROI media (`no ROI`), frame bytes, screenshots, embeddings, or debug clips to any cloud service. Local ROI/debug metadata is capped by `7-day retention`.
+
+## E2E reruns
+
+Run these from the repository root after preparing real Windows hardware and model artifacts:
+
+```powershell
+# Windows camera/ROI smoke: expect failure until camera implementation is wired.
+pwsh -File scripts/e2e/camera_roi_smoke.ps1
+
+# Windows UI automation/full-loop smokes: expect integration-required output until app wiring is complete.
+pwsh -File scripts/e2e/notepad_hotkey_insert.ps1
+pwsh -File scripts/e2e/notepad_full_loop.ps1
+pwsh -File scripts/e2e/browser_textarea_insert.ps1
+pwsh -File scripts/e2e/cursor_editor_insert.ps1
+pwsh -File scripts/e2e/sidecar_crash_recovery.ps1
+```
+
+Run Linux-safe checks with:
+
+```bash
+PYTHONPATH=/home/lshfgj/FreeLip/python python3 -m pytest python/tests -q
+npm run build
+cargo test --workspace
+```
+
+## Troubleshooting
+
+| Symptom | Meaning | Action |
+| --- | --- | --- |
+| `CHECKPOINT_MISSING` | Local CNVSRC/MAVSR artifacts are absent | Install approved checkpoints locally; do not commit them |
+| `WINDOWS_CAMERA_REQUIRED` | Camera test ran outside Windows | Rerun on Windows hardware |
+| `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` | Windows camera APIs exist but Rust capture is unwired | Complete camera integration before acceptance |
+| `WINDOWS_UI_AUTOMATION_REQUIRED` | Linux/WSL cannot prove target-app insertion | Rerun Windows UI smoke after integration |
+| `WINDOWS_FREELIP_INTEGRATION_REQUIRED` | Script cannot drive the real app loop yet | Wire FreeLip app/hotkey path before claiming E2E |
+
+Keep all examples placeholder-only. Never add real API keys, private model paths, raw video, or ROI media to documentation or tests.
