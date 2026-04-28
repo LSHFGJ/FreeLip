@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "profile": "windows-debug-bundle",
+  "sidecar": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "token": "debug-local-token-change-before-sharing",
+    "fixture_mode": true,
+    "expected_missing_checkpoint_code": "CHECKPOINT_MISSING"
+  },
+  "paths": {
+    "models_dir": "models",
+    "logs_dir": "logs",
+    "startup_diagnostics": "logs/startup-diagnostics.json",
+    "sidecar_log": "logs/sidecar.log",
+    "checkpoint_env": {
+      "cnvsrc2025": "FREELIP_CNVSRC2025_CHECKPOINT",
+      "mavsr2025": "FREELIP_MAVSR2025_CHECKPOINT"
+    }
+  },
+  "privacy": {
+    "cloud_vsr_enabled": false,
+    "llm_rerank_enabled": false,
+    "raw_media_upload_allowed": false,
+    "roi_media_upload_allowed": false
+  },
+  "notes": [
+    "This debug profile is internal research only and not production ready.",
+    "Model weights are not bundled; CHECKPOINT_MISSING is the expected diagnostic until local checkpoints are installed.",
+    "Fixture mode can exercise the sidecar contract without claiming real VSR quality."
+  ]
+}
