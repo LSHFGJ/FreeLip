@@ -172,6 +172,46 @@ h1 {
   text-align: center;
 }
 
+.camera-probe {
+  margin-top: 28px;
+  padding: 22px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0f172a;
+}
+
+.camera-probe h2 {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+}
+
+.camera-status {
+  margin: 14px 0 0;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.camera-status-pending {
+  color: #bae6fd;
+}
+
+.camera-status-ready {
+  color: #bbf7d0;
+}
+
+.camera-status-error {
+  color: #fecaca;
+}
+
+.camera-preview {
+  width: 100%;
+  max-height: 320px;
+  margin-top: 16px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #020617;
+}
+
 button {
   background: #3b82f6;
   color: white;

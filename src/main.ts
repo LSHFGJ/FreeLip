@@ -1,5 +1,6 @@
 import "./styles.css";
-import type { AppState, AppEvent, OverlayCandidate } from "./hotkeyState.ts";
+import { createCameraProbeController } from "./cameraProbe.ts";
+import type { AppEvent, AppState, OverlayCandidate } from "./hotkeyState.ts";
 import { reduce } from "./hotkeyState.ts";
 import { renderCandidates } from "./render.ts";
 
@@ -66,6 +67,19 @@ function render() {
   }
 
   content += `
+      <section class="camera-probe" aria-labelledby="camera-probe-title">
+        <p class="eyebrow">Windows camera check</p>
+        <h2 id="camera-probe-title">Camera Probe</h2>
+        <p class="instructions">
+          Request camera access and show a local preview in this WebView. This does not run ROI cropping, VSR, or model inference.
+        </p>
+        <button id="camera-probe-request" type="button">Request camera preview</button>
+        <p id="camera-probe-status" class="camera-status camera-status-idle">
+          Camera not requested yet. Run this from the Windows debug app to verify the real permission prompt.
+        </p>
+        <video id="camera-probe-preview" class="camera-preview" autoplay muted playsinline hidden></video>
+      </section>
+
       <div class="dev-controls">
         <button id="dev-trigger-recording">Trigger: Recording</button>
         <button id="dev-trigger-collision">Trigger: Collision</button>
@@ -101,6 +115,18 @@ function dispatch(event: AppEvent) {
 }
 
 function attachEvents() {
+  const cameraButton = document.querySelector<HTMLButtonElement>("#camera-probe-request");
+  const cameraStatus = document.querySelector<HTMLParagraphElement>("#camera-probe-status");
+  const cameraVideo = document.querySelector<HTMLVideoElement>("#camera-probe-preview");
+  if (cameraButton && cameraStatus && cameraVideo) {
+    createCameraProbeController({
+      button: cameraButton,
+      status: cameraStatus,
+      video: cameraVideo,
+      getMediaDevices: () => navigator.mediaDevices
+    });
+  }
+
   const remapBtn = document.getElementById("btn-remap");
   if (remapBtn) {
     remapBtn.addEventListener("click", () => dispatch({ type: "Remapped", newChord: "Ctrl+Alt+L" }));
