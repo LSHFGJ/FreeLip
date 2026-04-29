@@ -75,11 +75,38 @@ Set-StrictMode -Version Latest
 `$sidecarLog = Join-Path `$bundleRoot "logs\sidecar.log"
 `$configPath = Join-Path `$bundleRoot "config\freelip.debug.json"
 `$appExe = Join-Path `$bundleRoot "app\freelip.exe"
+`$sidecarHealthUrl = "http://127.0.0.1:8765/health"
+
+function Wait-FreeLipSidecarHealth {
+  param(
+    [string]`$HealthUrl,
+    [int]`$TimeoutSeconds = 30
+  )
+
+  `$deadline = (Get-Date).AddSeconds(`$TimeoutSeconds)
+  do {
+    try {
+      `$response = Invoke-WebRequest -Uri `$HealthUrl -UseBasicParsing -TimeoutSec 2
+      if (`$response.StatusCode -eq 200) {
+        return `$true
+      }
+    } catch {
+      Start-Sleep -Milliseconds 500
+    }
+  } while ((Get-Date) -lt `$deadline)
+
+  return `$false
+}
 
 Write-Host "Starting FreeLip debug sidecar..."
 `$sidecarArgs = @("-File", `$sidecarScript, "-RepoRoot", `$bundleRoot, "-LogPath", `$sidecarLog, "-ConfigPath", `$configPath)
 if (`$FixtureMode) { `$sidecarArgs += "-FixtureMode" }
 Start-Process -FilePath "powershell" -ArgumentList `$sidecarArgs -WindowStyle Normal
+
+Write-Host "Waiting for FreeLip sidecar health at `$sidecarHealthUrl..."
+if (-not (Wait-FreeLipSidecarHealth -HealthUrl `$sidecarHealthUrl -TimeoutSeconds 45)) {
+  throw "FreeLip sidecar did not become healthy. Check logs\sidecar.log and logs\sidecar-startup-diagnostics.json."
+}
 
 if (Test-Path `$appExe) {
   Write-Host "Starting FreeLip app..."

@@ -89,6 +89,16 @@ assertContains(
   "actual Tauri debug executable name fallback",
 );
 assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  "Wait-FreeLipSidecarHealth",
+  "sidecar health gate before app launch",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  "http://127.0.0.1:8765/health",
+  "sidecar loopback health endpoint wait",
+);
+assertContains(
   "src-tauri/tauri.conf.json",
   "icons/icon.ico",
   "explicit Windows Tauri icon path",
