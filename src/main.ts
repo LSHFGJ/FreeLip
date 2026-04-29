@@ -7,7 +7,7 @@ import type {
 	FormattedModelStatus,
 	SidecarModelStatus,
 } from "./modelStatus.ts";
-import { formatModelStatus } from "./modelStatus.ts";
+import { escapeModelStatusText, formatModelStatus } from "./modelStatus.ts";
 import { renderCandidates } from "./render.ts";
 
 let state: AppState = { type: "Idle", chord: "Ctrl+Alt+Space" };
@@ -31,7 +31,7 @@ function render() {
       </div>
       <section id="model-status" class="model-status model-status-${modelStatus.tone}" aria-live="polite">
         <p class="eyebrow">CNVSRC runtime</p>
-        <p>${modelStatus.text}</p>
+        <p>${escapeModelStatusText(modelStatus.text)}</p>
       </section>
   `;
 

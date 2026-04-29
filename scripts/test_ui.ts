@@ -1,7 +1,7 @@
 import { createCameraProbeController } from "../src/cameraProbe.ts";
 import { shouldShowDevControls } from "../src/devMode.ts";
 import { reduce } from "../src/hotkeyState.ts";
-import { formatModelStatus } from "../src/modelStatus.ts";
+import { escapeModelStatusText, formatModelStatus } from "../src/modelStatus.ts";
 import { renderCandidates } from "../src/render.ts";
 
 function strictEqual(actual: unknown, expected: unknown) {
@@ -210,6 +210,11 @@ function runModelStatusTests() {
   ok(
     realStatus.text.includes("cnvsrc2025-official-cuda"),
     `Expected real status text to include runtime id, got: ${realStatus.text}`
+  );
+
+  strictEqual(
+    escapeModelStatusText("<img src=x onerror=alert(1)> & runtime"),
+    "&lt;img src=x onerror=alert(1)&gt; &amp; runtime"
   );
 }
 
