@@ -84,6 +84,11 @@ assertContains(
   "debug distribution folder",
 );
 assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  "freelip-tauri.exe",
+  "actual Tauri debug executable name fallback",
+);
+assertContains(
   "src-tauri/tauri.conf.json",
   "icons/icon.ico",
   "explicit Windows Tauri icon path",

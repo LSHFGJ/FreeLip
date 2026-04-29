@@ -32,7 +32,14 @@ try {
   Pop-Location
 }
 
-$debugExe = Join-Path $repoRoot "src-tauri\target\debug\freelip.exe"
+$debugExeCandidates = @(
+  (Join-Path $repoRoot "src-tauri\target\debug\freelip.exe"),
+  (Join-Path $repoRoot "src-tauri\target\debug\freelip-tauri.exe")
+)
+$debugExe = $debugExeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $debugExe) {
+  $debugExe = $debugExeCandidates[0]
+}
 $debugBundle = Join-Path $repoRoot "src-tauri\target\debug\bundle"
 if (Test-Path $debugExe) {
   Copy-Item -Force $debugExe (Join-Path $appDir "freelip.exe")
@@ -43,7 +50,7 @@ if (Test-Path $debugBundle) {
 if (-not (Test-Path (Join-Path $appDir "freelip.exe"))) {
   @"
 FreeLip Windows debug executable was not found at:
-$debugExe
+$($debugExeCandidates -join "`n")
 
 Run this script on Windows without -SkipTauriBuild after installing Node, Rust, and Tauri prerequisites.
 "@ | Set-Content -Encoding UTF8 -Path (Join-Path $appDir "MISSING_WINDOWS_BUILD.txt")
@@ -98,6 +105,7 @@ $diagnostics = [ordered]@{
   startup_diagnostics = $diagnosticsPath
   fixture_mode_requested = [bool]$FixtureMode
   tauri_debug_exe = $debugExe
+  tauri_debug_exe_candidates = $debugExeCandidates
   tauri_debug_exe_present = Test-Path $debugExe
   expected_missing_checkpoint_code = "CHECKPOINT_MISSING"
   commands = [ordered]@{
