@@ -5,6 +5,7 @@ param(
   [ValidateSet("cpu", "cuda")]
   [string]$Device = "cpu",
   [switch]$FixtureMode,
+  [switch]$Detached,
   [string]$RepoRoot,
   [string]$LogPath,
   [string]$ConfigPath
@@ -82,7 +83,9 @@ $diagnostic = [ordered]@{
   port = $Port
   device = $Device
   fixture_mode = [bool]$FixtureMode
+  detached = [bool]$Detached
   log_path = $LogPath
+  error_log_path = [System.IO.Path]::ChangeExtension($LogPath, ".err.log")
   expected_missing_checkpoint_code = "CHECKPOINT_MISSING"
   checkpoint_env = [ordered]@{
     cnvsrc2025 = "FREELIP_CNVSRC2025_CHECKPOINT"
@@ -97,4 +100,11 @@ $diagnostic | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -Path (Join-P
 
 Write-Host "Starting FreeLip sidecar on http://$HostName`:$Port"
 Write-Host "Writing sidecar log to $LogPath"
+if ($Detached) {
+  $errorLogPath = [System.IO.Path]::ChangeExtension($LogPath, ".err.log")
+  Remove-Item -Force -ErrorAction SilentlyContinue $LogPath, $errorLogPath
+  Start-Process -FilePath "python" -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput $LogPath -RedirectStandardError $errorLogPath | Out-Null
+  Write-Host "Detached FreeLip sidecar process started. Writing sidecar stderr to $errorLogPath"
+  exit 0
+}
 & python @arguments 2>&1 | Tee-Object -FilePath $LogPath

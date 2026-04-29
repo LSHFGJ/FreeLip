@@ -157,6 +157,21 @@ assertContains(
 );
 assertContains(
   "scripts/windows/build_debug_bundle.ps1",
+  '"-Detached"',
+  "bundle launcher starts a detached sidecar process that survives app startup",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "[switch]$Detached",
+  "sidecar launcher detached mode for one-click bundle startup",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  'Start-Process -FilePath "python"',
+  "detached mode starts Python sidecar directly instead of relying on a long-running PowerShell pipe",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
   'http://`${sidecarHost}:`$sidecarPort/health',
   "sidecar loopback health endpoint derived from debug config",
 );

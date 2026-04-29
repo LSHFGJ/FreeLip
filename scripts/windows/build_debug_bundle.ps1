@@ -120,7 +120,7 @@ function Wait-FreeLipSidecarHealth {
 }
 
 Write-Host "Starting FreeLip debug sidecar..."
-`$sidecarArgs = @("-File", `$sidecarScript, "-RepoRoot", `$bundleRoot, "-LogPath", `$sidecarLog, "-ConfigPath", `$configPath, "-HostName", `$sidecarHost, "-Port", `$sidecarPort, "-Token", `$sidecarToken)
+`$sidecarArgs = @("-File", `$sidecarScript, "-RepoRoot", `$bundleRoot, "-LogPath", `$sidecarLog, "-ConfigPath", `$configPath, "-HostName", `$sidecarHost, "-Port", `$sidecarPort, "-Token", `$sidecarToken, "-Detached")
 if (`$FixtureMode) { `$sidecarArgs += "-FixtureMode" }
 Start-Process -FilePath "powershell" -ArgumentList `$sidecarArgs -WindowStyle Normal
 
