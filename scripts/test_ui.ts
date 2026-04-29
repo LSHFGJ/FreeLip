@@ -1,8 +1,23 @@
+import { createCameraProbeController } from "../src/cameraProbe.ts";
 import { reduce } from "../src/hotkeyState.ts";
-import assert from "node:assert";
+import { renderCandidates } from "../src/render.ts";
+
+function strictEqual(actual: unknown, expected: unknown) {
+  if (!Object.is(actual, expected)) {
+    throw new Error(`Expected ${String(actual)} to strictly equal ${String(expected)}`);
+  }
+}
+
+function deepStrictEqual(actual: unknown, expected: unknown) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {
+    throw new Error(`Expected ${actualJson} to deeply equal ${expectedJson}`);
+  }
+}
 
 class MockElement {
-  children: any[] = [];
+  children: unknown[] = [];
   className = "";
   textContent = "";
   innerHTML = "";
@@ -17,13 +32,49 @@ class MockElement {
     this.attributes[name] = value;
   }
   
-  appendChild(child: any) {
+  appendChild(child: unknown) {
     this.children.push(child);
   }
 }
 
+class MockButton {
+  disabled = false;
+  private clickListener: (() => void | Promise<void>) | null = null;
+
+  addEventListener(event: string, listener: () => void | Promise<void>) {
+    if (event === "click") {
+      this.clickListener = listener;
+    }
+  }
+
+  async click() {
+    await this.clickListener?.();
+  }
+}
+
+class MockStatus {
+  textContent = "";
+  className = "";
+}
+
+class MockVideo {
+  srcObject: MediaStream | null = null;
+  hidden = true;
+  muted = false;
+  playsInline = false;
+}
+
+function expectMockElement(value: unknown): MockElement {
+  if (value instanceof MockElement) {
+    return value;
+  }
+
+  throw new Error("Expected a MockElement child");
+}
+
 const mockApp = new MockElement("div");
-(globalThis as any).document = {
+Object.defineProperty(globalThis, "document", {
+  value: {
   querySelector: (sel: string) => {
     if (sel === "#app") return mockApp;
     return null;
@@ -33,41 +84,41 @@ const mockApp = new MockElement("div");
   createTextNode: (text: string) => ({ textContent: text, isTextNode: true }),
   addEventListener: () => {},
   body: new MockElement("body"),
-};
-
-import { renderCandidates } from "../src/render.ts";
+  },
+  configurable: true
+});
 
 function runTests() {
   // Test Idle
   let result = reduce({ type: "Idle", chord: "Ctrl+Alt+Space" }, { type: "HotkeyPressed" });
-  assert.deepStrictEqual(result.state, { type: "Recording", chord: "Ctrl+Alt+Space" });
+  deepStrictEqual(result.state, { type: "Recording", chord: "Ctrl+Alt+Space" });
 
   // Test Collision
   result = reduce({ type: "Idle", chord: "Ctrl+Alt+Space" }, { type: "CollisionDetected" });
-  assert.deepStrictEqual(result.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
+  deepStrictEqual(result.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
   
   // Test remap ignores HotkeyPressed
   result = reduce(result.state, { type: "HotkeyPressed" });
-  assert.deepStrictEqual(result.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
+  deepStrictEqual(result.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
   
   // Test remap ignores empty or same chord
   let remapResult = reduce({ type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" }, { type: "Remapped", newChord: "   " });
-  assert.deepStrictEqual(remapResult.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
+  deepStrictEqual(remapResult.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
 
   remapResult = reduce({ type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" }, { type: "Remapped", newChord: "Ctrl+Alt+Space" });
-  assert.deepStrictEqual(remapResult.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
+  deepStrictEqual(remapResult.state, { type: "CollisionRemapRequired", defaultChord: "Ctrl+Alt+Space" });
 
   result = reduce(result.state, { type: "Remapped", newChord: "Ctrl+Alt+L" });
-  assert.deepStrictEqual(result.state, { type: "Idle", chord: "Ctrl+Alt+L" });
+  deepStrictEqual(result.state, { type: "Idle", chord: "Ctrl+Alt+L" });
   
   // Now starts recording with new chord
   result = reduce(result.state, { type: "HotkeyPressed" });
-  assert.deepStrictEqual(result.state, { type: "Recording", chord: "Ctrl+Alt+L" });
+  deepStrictEqual(result.state, { type: "Recording", chord: "Ctrl+Alt+L" });
 
   // Test full flow
   result = reduce({ type: "Idle", chord: "Ctrl+Alt+Space" }, { type: "HotkeyPressed" });
   result = reduce(result.state, { type: "RecordingStopped" });
-  assert.deepStrictEqual(result.state, { type: "Processing", chord: "Ctrl+Alt+Space" });
+  deepStrictEqual(result.state, { type: "Processing", chord: "Ctrl+Alt+Space" });
   
   const candidates = [
     { text: "C1", source: "vsr" },
@@ -79,39 +130,103 @@ function runTests() {
   ];
   result = reduce(result.state, { type: "ProcessingComplete", candidates, lowQuality: true, autoInsertThresholdMet: false });
   // Should truncate to 5
-  assert.deepStrictEqual(result.state, { type: "ShowingCandidates", chord: "Ctrl+Alt+Space", candidates: candidates.slice(0, 5), lowQuality: true, autoInsertThresholdMet: false });
+  deepStrictEqual(result.state, { type: "ShowingCandidates", chord: "Ctrl+Alt+Space", candidates: candidates.slice(0, 5), lowQuality: true, autoInsertThresholdMet: false });
   
   // Select first candidate
   const selectResult = reduce(result.state, { type: "NumberKeyPressed", index: 1 });
-  assert.deepStrictEqual(selectResult.state, { type: "Idle", chord: "Ctrl+Alt+Space" });
-  assert.deepStrictEqual(selectResult.action, { type: "InsertCandidate", candidate: candidates[0] });
+  deepStrictEqual(selectResult.state, { type: "Idle", chord: "Ctrl+Alt+Space" });
+  deepStrictEqual(selectResult.action, { type: "InsertCandidate", candidate: candidates[0] });
 
   // Test Escape from Candidates
   result = reduce({ type: "ShowingCandidates", chord: "Ctrl+Alt+Space", candidates: candidates.slice(0, 5), lowQuality: false, autoInsertThresholdMet: false }, { type: "EscapePressed" });
-  assert.deepStrictEqual(result.state, { type: "Idle", chord: "Ctrl+Alt+Space" });
-  assert.deepStrictEqual(result.action, { type: "Cancel" });
+  deepStrictEqual(result.state, { type: "Idle", chord: "Ctrl+Alt+Space" });
+  deepStrictEqual(result.action, { type: "Cancel" });
 
   // Test Escape from Recording
   result = reduce({ type: "Recording", chord: "Ctrl+Alt+L" }, { type: "EscapePressed" });
-  assert.deepStrictEqual(result.state, { type: "Idle", chord: "Ctrl+Alt+L" });
-  assert.deepStrictEqual(result.action, { type: "Cancel" });
+  deepStrictEqual(result.state, { type: "Idle", chord: "Ctrl+Alt+L" });
+  deepStrictEqual(result.action, { type: "Cancel" });
 
   const container = new MockElement("ol");
   const maliciousCandidates = [
     { text: "<img src=x onerror=alert(1)>", source: "<b>llm</b>" }
   ];
-  renderCandidates(container as any, maliciousCandidates);
+  renderCandidates(container as unknown as Element, maliciousCandidates);
   
-  assert.strictEqual(container.innerHTML, "");
-  assert.strictEqual(container.children.length, 1);
+  strictEqual(container.innerHTML, "");
+  strictEqual(container.children.length, 1);
   
-  const firstChild = container.children[0];
-  assert.strictEqual(firstChild.tagName, "li");
-  assert.strictEqual(firstChild.children.length, 5);
+  const firstChild = expectMockElement(container.children[0]);
+  strictEqual(firstChild.tagName, "li");
+  strictEqual(firstChild.children.length, 5);
   
-  assert.strictEqual(firstChild.children[0].textContent, "1.");
-  assert.strictEqual(firstChild.children[2].textContent, "<img src=x onerror=alert(1)>");
-  assert.strictEqual(firstChild.children[4].textContent, "<b>llm</b>");
+  strictEqual(expectMockElement(firstChild.children[0]).textContent, "1.");
+  strictEqual(expectMockElement(firstChild.children[2]).textContent, "<img src=x onerror=alert(1)>");
+  strictEqual(expectMockElement(firstChild.children[4]).textContent, "<b>llm</b>");
 }
 
-runTests();
+async function runCameraProbeTests() {
+  const calls: MediaStreamConstraints[] = [];
+  const stream = { id: "camera-stream" } as MediaStream;
+  const button = new MockButton();
+  const status = new MockStatus();
+  const video = new MockVideo();
+
+  createCameraProbeController({
+    button,
+    status,
+    video,
+    getMediaDevices: () => ({
+      getUserMedia: async (constraints: MediaStreamConstraints) => {
+        calls.push(constraints);
+        return stream;
+      }
+    })
+  });
+
+  await button.click();
+
+  deepStrictEqual(calls, [{ video: true, audio: false }]);
+  strictEqual(video.srcObject, stream);
+  strictEqual(video.hidden, false);
+  strictEqual(video.muted, true);
+  strictEqual(video.playsInline, true);
+  strictEqual(button.disabled, false);
+  strictEqual(
+    status.textContent,
+    "Camera preview is active. This only verifies camera permission and local capture, not ROI cropping or model inference."
+  );
+  strictEqual(status.className, "camera-status camera-status-ready");
+}
+
+async function runCameraUnavailableTests() {
+  const button = new MockButton();
+  const status = new MockStatus();
+  const video = new MockVideo();
+
+  createCameraProbeController({
+    button,
+    status,
+    video,
+    getMediaDevices: () => undefined
+  });
+
+  await button.click();
+
+  strictEqual(video.srcObject, null);
+  strictEqual(video.hidden, true);
+  strictEqual(button.disabled, false);
+  strictEqual(
+    status.textContent,
+    "Camera access is unavailable in this WebView/browser context. Rebuild and run the Windows debug app to test the real permission prompt."
+  );
+  strictEqual(status.className, "camera-status camera-status-error");
+}
+
+async function runAllTests() {
+  runTests();
+  await runCameraProbeTests();
+  await runCameraUnavailableTests();
+}
+
+await runAllTests();
