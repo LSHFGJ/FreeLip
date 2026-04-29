@@ -1,3 +1,5 @@
+import { SIDECAR_HOST, SIDECAR_PORT } from "./sidecarConfig.ts";
+
 export type SidecarModelStatus = {
   backend?: unknown;
   status?: unknown;
@@ -49,7 +51,7 @@ function isFixtureStatus(status: SidecarModelStatus): boolean {
 export function formatModelStatus(status: SidecarModelStatus | null | undefined): FormattedModelStatus {
   if (!status) {
     return {
-      text: "Model status: checking local sidecar on 127.0.0.1:8765...",
+      text: `Model status: checking local sidecar on ${SIDECAR_HOST}:${SIDECAR_PORT}...`,
       tone: "pending",
       realModelReady: false
     };

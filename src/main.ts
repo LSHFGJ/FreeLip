@@ -9,12 +9,10 @@ import type {
 } from "./modelStatus.ts";
 import { escapeModelStatusText, formatModelStatus } from "./modelStatus.ts";
 import { renderCandidates } from "./render.ts";
+import { DEBUG_SIDECAR_TOKEN, SIDECAR_STATUS_URL } from "./sidecarConfig.ts";
 
 let state: AppState = { type: "Idle", chord: "Ctrl+Alt+Space" };
 let modelStatus: FormattedModelStatus = formatModelStatus(null);
-
-const SIDECAR_STATUS_URL = "http://127.0.0.1:8765/model/status";
-const DEBUG_SIDECAR_TOKEN = "debug-local-token-change-before-sharing";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 const devControlsEnabled = readDevControlsEnabled();
