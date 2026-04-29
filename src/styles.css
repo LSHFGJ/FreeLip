@@ -262,3 +262,39 @@ button:hover {
 .dev-controls button:hover {
   background: #64748b;
 }
+.model-status {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  text-align: left;
+}
+.model-status p {
+  margin: 0;
+}
+.model-status .eyebrow {
+  margin-bottom: 6px;
+}
+.model-status-pending {
+  border-color: #38bdf8;
+  color: #bae6fd;
+}
+.model-status-ready {
+  border-color: #10b981;
+  color: #bbf7d0;
+}
+.model-status-warning {
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+.model-status-error {
+  border-color: #ef4444;
+  color: #fecaca;
+}
+.dev-controls-warning {
+  flex-basis: 100%;
+  margin: 0 0 4px;
+  color: #fde68a;
+  font-size: 0.85rem;
+}

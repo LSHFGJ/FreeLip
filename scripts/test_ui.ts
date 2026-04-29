@@ -1,5 +1,7 @@
 import { createCameraProbeController } from "../src/cameraProbe.ts";
+import { shouldShowDevControls } from "../src/devMode.ts";
 import { reduce } from "../src/hotkeyState.ts";
+import { formatModelStatus } from "../src/modelStatus.ts";
 import { renderCandidates } from "../src/render.ts";
 
 function strictEqual(actual: unknown, expected: unknown) {
@@ -13,6 +15,12 @@ function deepStrictEqual(actual: unknown, expected: unknown) {
   const expectedJson = JSON.stringify(expected);
   if (actualJson !== expectedJson) {
     throw new Error(`Expected ${actualJson} to deeply equal ${expectedJson}`);
+  }
+}
+
+function ok(value: unknown, message: string) {
+  if (!value) {
+    throw new Error(message);
   }
 }
 
@@ -165,6 +173,52 @@ function runTests() {
   strictEqual(expectMockElement(firstChild.children[4]).textContent, "<b>llm</b>");
 }
 
+function runModelStatusTests() {
+  const fixtureStatus = formatModelStatus({
+    backend: "fixture",
+    status: "FIXTURE_MODE",
+    fixture_mode: true,
+    fallback_active: true,
+    ready: true,
+    model_id: "cnvsrc2025",
+    runtime_id: "cnvsrc2025-fixture-cpu-checkpoint-gated"
+  });
+
+  ok(
+    fixtureStatus.text.toLowerCase().includes("fixture") || fixtureStatus.text.toLowerCase().includes("mock"),
+    `Expected fixture status text to disclose non-real backend, got: ${fixtureStatus.text}`
+  );
+  ok(
+    fixtureStatus.text.toLowerCase().includes("not real") || fixtureStatus.text.toLowerCase().includes("非真实"),
+    `Expected fixture status text to say it is not real model inference, got: ${fixtureStatus.text}`
+  );
+  strictEqual(fixtureStatus.tone, "warning");
+  strictEqual(fixtureStatus.realModelReady, false);
+
+  const realStatus = formatModelStatus({
+    backend: "cnvsrc2025",
+    status: "READY",
+    fixture_mode: false,
+    fallback_active: false,
+    ready: true,
+    model_id: "cnvsrc2025",
+    runtime_id: "cnvsrc2025-official-cuda"
+  });
+
+  strictEqual(realStatus.tone, "ready");
+  strictEqual(realStatus.realModelReady, true);
+  ok(
+    realStatus.text.includes("cnvsrc2025-official-cuda"),
+    `Expected real status text to include runtime id, got: ${realStatus.text}`
+  );
+}
+
+function runDevModeTests() {
+  strictEqual(shouldShowDevControls("", null), false);
+  strictEqual(shouldShowDevControls("?dev=1", null), true);
+  strictEqual(shouldShowDevControls("", "1"), true);
+}
+
 async function runCameraProbeTests() {
   const calls: MediaStreamConstraints[] = [];
   const stream = { id: "camera-stream" } as MediaStream;
@@ -225,6 +279,8 @@ async function runCameraUnavailableTests() {
 
 async function runAllTests() {
   runTests();
+  runModelStatusTests();
+  runDevModeTests();
   await runCameraProbeTests();
   await runCameraUnavailableTests();
 }
