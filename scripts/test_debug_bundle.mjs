@@ -22,6 +22,13 @@ function assertContains(relativePath, expected, reason) {
   assert.equal(matches, true, `${relativePath} should contain ${reason}`);
 }
 
+function assertNotContains(relativePath, unexpected, reason) {
+  const text = readText(relativePath);
+  const matches =
+    typeof unexpected === "string" ? text.includes(unexpected) : unexpected.test(text);
+  assert.equal(matches, false, `${relativePath} should not contain ${reason}`);
+}
+
 const packageJson = JSON.parse(readText("package.json"));
 const debugConfig = JSON.parse(readText("config/freelip.debug.json"));
 
@@ -44,6 +51,11 @@ assert.equal(
   debugConfig.sidecar?.fixture_mode,
   false,
   "debug config should default to real-runtime mode; use -FixtureMode only for contract fixtures",
+);
+assert.equal(
+  debugConfig.sidecar?.port,
+  18765,
+  "debug config should avoid Windows environments where 127.0.0.1:8765 is unavailable",
 );
 
 assertContains(
@@ -95,6 +107,11 @@ assertContains(
 );
 assertContains(
   "scripts/windows/build_debug_bundle.ps1",
+  'pushd "%~dp0"',
+  "batch launcher supports UNC bundle paths",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
   "FreeLip debug launcher finished. Press any key to close this window.",
   "batch launcher keeps diagnostics visible after successful launch",
 );
@@ -140,8 +157,33 @@ assertContains(
 );
 assertContains(
   "scripts/windows/build_debug_bundle.ps1",
+  'http://`${sidecarHost}:`$sidecarPort/health',
+  "sidecar loopback health endpoint derived from debug config",
+);
+assertNotContains(
+  "scripts/windows/build_debug_bundle.ps1",
   "http://127.0.0.1:8765/health",
-  "sidecar loopback health endpoint wait",
+  "hardcoded legacy sidecar health endpoint",
+);
+assertContains(
+  "src/main.ts",
+  'from "./sidecarConfig.ts"',
+  "frontend sidecar status endpoint imported from shared debug config",
+);
+assertNotContains(
+  "src/main.ts",
+  "http://127.0.0.1:8765/model/status",
+  "hardcoded legacy frontend sidecar status endpoint",
+);
+assertContains(
+  "src/modelStatus.ts",
+  'from "./sidecarConfig.ts"',
+  "model status copy derived from shared sidecar config",
+);
+assertContains(
+  "python/freelip_vsr/sidecar.py",
+  "default=18765",
+  "Python sidecar CLI default port aligned with Windows-safe debug port",
 );
 assertContains(
   "src-tauri/tauri.conf.json",

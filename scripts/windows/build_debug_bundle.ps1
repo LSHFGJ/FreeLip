@@ -81,7 +81,22 @@ Set-StrictMode -Version Latest
 `$sidecarLog = Join-Path `$bundleRoot "logs\sidecar.log"
 `$configPath = Join-Path `$bundleRoot "config\freelip.debug.json"
 `$appExe = Join-Path `$bundleRoot "app\freelip.exe"
-`$sidecarHealthUrl = "http://127.0.0.1:8765/health"
+`$sidecarHost = "127.0.0.1"
+`$sidecarPort = 18765
+`$sidecarToken = "debug-local-token-change-before-sharing"
+
+if (Test-Path `$configPath) {
+  `$debugConfig = Get-Content -Raw -Path `$configPath | ConvertFrom-Json
+  if (`$null -ne `$debugConfig.sidecar.host) { `$sidecarHost = [string]`$debugConfig.sidecar.host }
+  if (`$null -ne `$debugConfig.sidecar.port) { `$sidecarPort = [int]`$debugConfig.sidecar.port }
+  if (`$null -ne `$debugConfig.sidecar.token) { `$sidecarToken = [string]`$debugConfig.sidecar.token }
+}
+
+if (`$sidecarHost -ne "127.0.0.1") {
+  throw "FreeLip debug sidecar must bind to 127.0.0.1, got '`$sidecarHost'."
+}
+
+`$sidecarHealthUrl = "http://`${sidecarHost}:`$sidecarPort/health"
 
 function Wait-FreeLipSidecarHealth {
   param(
@@ -105,7 +120,7 @@ function Wait-FreeLipSidecarHealth {
 }
 
 Write-Host "Starting FreeLip debug sidecar..."
-`$sidecarArgs = @("-File", `$sidecarScript, "-RepoRoot", `$bundleRoot, "-LogPath", `$sidecarLog, "-ConfigPath", `$configPath)
+`$sidecarArgs = @("-File", `$sidecarScript, "-RepoRoot", `$bundleRoot, "-LogPath", `$sidecarLog, "-ConfigPath", `$configPath, "-HostName", `$sidecarHost, "-Port", `$sidecarPort, "-Token", `$sidecarToken)
 if (`$FixtureMode) { `$sidecarArgs += "-FixtureMode" }
 Start-Process -FilePath "powershell" -ArgumentList `$sidecarArgs -WindowStyle Normal
 
@@ -126,9 +141,10 @@ $launcher | Set-Content -Encoding UTF8 -Path (Join-Path $bundleRoot "run-debug.p
 $batchLauncher = @"
 @echo off
 setlocal
-cd /d "%~dp0"
+pushd "%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-debug.ps1" %*
 set FREELIP_EXIT=%ERRORLEVEL%
+popd
 echo.
 if %FREELIP_EXIT% EQU 0 (
   echo FreeLip debug launcher finished. Press any key to close this window.
