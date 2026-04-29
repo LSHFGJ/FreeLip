@@ -16,6 +16,14 @@ checkpoints/cnvsrc2025/model_avg_cncvs_2_3_cnvsrc.pth
 
 The checkpoint must match Hugging Face `ReflectionL/CNVSRC2025Baseline` file `model_avg_cncvs_2_3_cnvsrc.pth`, size `1137500697`, SHA-256 `577cd9558eea111683a406bc25d69c7161cdb79534c2273fc0d0f044c356231c`.
 
+CNVSRC2025 readiness also requires a local runtime adapter:
+
+```bash
+export FREELIP_CNVSRC2025_RUNTIME_ADAPTER="your_cnvsrc_adapter_module:create_runner"
+```
+
+The adapter uses `module:function` syntax, imports the official CNVSRC2025 baseline runtime, and returns a runner with `runtime_id` plus `decode(request_payload)`.
+
 ## Manual MAVSR2025 fallback research gate
 
 ```bash
