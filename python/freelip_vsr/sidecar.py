@@ -95,6 +95,9 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         self._handle(self._route_delete)
 
+    def do_OPTIONS(self) -> None:
+        self._handle(self._route_options)
+
     def _handle(self, route: Callable[[], None]) -> None:
         try:
             route()
@@ -121,6 +124,13 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, self._state().backend.status())
             return
         raise SidecarError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "endpoint not found")
+
+    def _route_options(self) -> None:
+        self.send_response(HTTPStatus.NO_CONTENT.value)
+        self._send_cors_headers()
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
 
     def _route_post(self) -> None:
         path = self._path()
@@ -266,6 +276,7 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -275,8 +286,18 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.send_header("Cache-Control", "no-store")
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _send_cors_headers(self) -> None:
+        origin = self.headers.get("Origin")
+        if origin and is_allowed_loopback_webview_origin(origin):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "authorization, content-type, x-freelip-token")
+            self.send_header("Access-Control-Max-Age", "600")
 
     def _send_error(self, status: HTTPStatus, error_code: str, message: str, details: JsonObject | None = None) -> None:
         payload: JsonObject = {
@@ -298,6 +319,15 @@ def token_from_headers(authorization: str | None, explicit_token: str | None) ->
     if scheme.lower() != "bearer" or not value:
         return None
     return value
+
+
+def is_allowed_loopback_webview_origin(origin: str) -> bool:
+    return (
+        origin == "tauri://localhost"
+        or origin == "http://tauri.localhost"
+        or origin.startswith("http://127.0.0.1:")
+        or origin.startswith("http://localhost:")
+    )
 
 
 def string_field(payload: JsonObject, field_name: str, max_length: int) -> str:

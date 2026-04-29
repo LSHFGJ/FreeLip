@@ -118,6 +118,12 @@ def request_json(
         return exc.code, json.loads(raw)
 
 
+def request_headers(method: str, url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str]]:
+    request = Request(url, headers=headers or {}, method=method)
+    with NO_PROXY_OPENER.open(request, timeout=3) as response:
+        return response.status, dict(response.headers.items())
+
+
 def roi_request() -> dict[str, Any]:
     payload = load_json(SCHEMAS_DIR / "fixtures/roi_request.valid.json")
     payload["source"]["kind"] = "fixture"
@@ -151,6 +157,41 @@ def test_health_is_public_but_status_requires_token() -> None:
     assert isinstance(ok_body, dict)
     assert ok_body["model_id"] == "cnvsrc2025"
     assert backend.decode_calls == 0
+
+
+def test_status_allows_loopback_webview_cors_preflight() -> None:
+    backend = CountingBackend()
+    server = sidecar.create_server("127.0.0.1", 0, token=TOKEN, backend=backend)
+    base_url, thread = serve(server)
+    try:
+        options_status, options_headers = request_headers(
+            "OPTIONS",
+            f"{base_url}/model/status",
+            {
+                "Origin": "tauri://localhost",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization,x-freelip-token",
+            },
+        )
+        get_status, get_headers = request_headers(
+            "GET",
+            f"{base_url}/model/status",
+            {
+                "Origin": "tauri://localhost",
+                "Authorization": f"Bearer {TOKEN}",
+            },
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
+        server.server_close()
+
+    assert options_status == 204
+    assert options_headers["Access-Control-Allow-Origin"] == "tauri://localhost"
+    assert "authorization" in options_headers["Access-Control-Allow-Headers"].lower()
+    assert "x-freelip-token" in options_headers["Access-Control-Allow-Headers"].lower()
+    assert get_status == 200
+    assert get_headers["Access-Control-Allow-Origin"] == "tauri://localhost"
 
 
 def test_decode_requires_token_before_backend_inference() -> None:
