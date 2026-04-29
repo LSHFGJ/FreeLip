@@ -118,7 +118,7 @@ if (Test-Path `$appExe) {
   Write-Host "Starting FreeLip app..."
   Start-Process -FilePath `$appExe -WorkingDirectory (Split-Path -Parent `$appExe)
 } else {
-  Write-Warning "FreeLip executable is missing. See app\MISSING_WINDOWS_BUILD.txt."
+  throw "FreeLip executable is missing. See app\MISSING_WINDOWS_BUILD.txt."
 }
 "@
 $launcher | Set-Content -Encoding UTF8 -Path (Join-Path $bundleRoot "run-debug.ps1")
@@ -128,7 +128,15 @@ $batchLauncher = @"
 setlocal
 cd /d "%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-debug.ps1" %*
-if errorlevel 1 pause
+set FREELIP_EXIT=%ERRORLEVEL%
+echo.
+if %FREELIP_EXIT% EQU 0 (
+  echo FreeLip debug launcher finished. Press any key to close this window.
+) else (
+  echo FreeLip debug launcher failed with exit code %FREELIP_EXIT%. Press any key to close this window.
+)
+pause >nul
+exit /b %FREELIP_EXIT%
 "@
 $batchLauncher | Set-Content -Encoding ASCII -Path (Join-Path $bundleRoot "Run-FreeLip.bat")
 

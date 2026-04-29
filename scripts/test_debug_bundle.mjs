@@ -94,6 +94,21 @@ assertContains(
   "batch launcher forwarding to run-debug.ps1",
 );
 assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  "FreeLip debug launcher finished. Press any key to close this window.",
+  "batch launcher keeps diagnostics visible after successful launch",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  "pause >nul",
+  "batch launcher waits before closing",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  'throw "FreeLip executable is missing. See app\\MISSING_WINDOWS_BUILD.txt."',
+  "missing app executable fails the launcher instead of flashing closed",
+);
+assertContains(
   "scripts/windows/README.md",
   "Run-FreeLip.bat",
   "one-click batch launcher documentation",
