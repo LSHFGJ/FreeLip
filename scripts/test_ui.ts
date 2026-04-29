@@ -216,6 +216,23 @@ function runModelStatusTests() {
     escapeModelStatusText("<img src=x onerror=alert(1)> & runtime"),
     "&lt;img src=x onerror=alert(1)&gt; &amp; runtime"
   );
+
+  const unreachableStatus = formatModelStatus({
+    backend: "cnvsrc2025",
+    status: "SIDECAR_UNREACHABLE",
+    error_code: "SIDECAR_UNREACHABLE",
+    ready: false,
+    model_id: "cnvsrc2025",
+    runtime_id: "local-sidecar",
+    message: "Failed to fetch"
+  });
+
+  strictEqual(unreachableStatus.tone, "error");
+  strictEqual(unreachableStatus.realModelReady, false);
+  ok(
+    unreachableStatus.text.includes("run-debug.ps1") && unreachableStatus.text.includes("sidecar"),
+    `Expected unreachable status to explain the sidecar launch path, got: ${unreachableStatus.text}`
+  );
 }
 
 function runDevModeTests() {

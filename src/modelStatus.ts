@@ -79,6 +79,15 @@ export function formatModelStatus(status: SidecarModelStatus | null | undefined)
     };
   }
 
+  if (statusCode === "SIDECAR_UNREACHABLE" || errorCode === "SIDECAR_UNREACHABLE") {
+    const details = message ? ` Last error: ${message}.` : "";
+    return {
+      text: `Sidecar is not running or not reachable. Start FreeLip with debug-dist\\FreeLip-debug\\run-debug.ps1 so the local sidecar starts before the app.${details}`,
+      tone: "error",
+      realModelReady: false
+    };
+  }
+
   const details = message ? ` ${message}` : "";
   return {
     text: `Real model not ready: ${modelId} reports ${statusCode} via ${runtimeId}.${details}`,
