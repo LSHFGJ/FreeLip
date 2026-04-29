@@ -60,6 +60,7 @@ for (const filePath of [
   "scripts/windows/build_debug_bundle.ps1",
   "scripts/windows/run_sidecar_debug.ps1",
   "scripts/windows/README.md",
+  "src-tauri/icons/icon.ico",
   "config/freelip.debug.json",
   "models/DEBUG_BUNDLE_README.md",
 ]) {
@@ -75,6 +76,11 @@ assertContains(
   "scripts/windows/build_debug_bundle.ps1",
   "debug-dist",
   "debug distribution folder",
+);
+assertContains(
+  "src-tauri/tauri.conf.json",
+  "icons/icon.ico",
+  "explicit Windows Tauri icon path",
 );
 assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
