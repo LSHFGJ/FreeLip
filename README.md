@@ -68,7 +68,13 @@ This creates:
 debug-dist/FreeLip-debug/
 ```
 
-Run it with:
+Run it by double-clicking the generated one-click wrapper:
+
+```text
+debug-dist/FreeLip-debug/Run-FreeLip.bat
+```
+
+Or run the underlying PowerShell launcher directly:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run-debug.ps1

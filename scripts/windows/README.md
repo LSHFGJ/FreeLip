@@ -16,9 +16,17 @@ The output folder is:
 debug-dist/FreeLip-debug/
 ```
 
-It contains `app/`, `sidecar/`, `python/`, `config/`, `models/`, and `logs/` directories plus `run-debug.ps1`.
+It contains `app/`, `sidecar/`, `python/`, `config/`, `models/`, and `logs/` directories plus `run-debug.ps1` and the one-click `Run-FreeLip.bat` wrapper.
 
 ## Run the bundle
+
+For one-click local debugging, double-click:
+
+```text
+debug-dist/FreeLip-debug/Run-FreeLip.bat
+```
+
+The batch wrapper forwards to the PowerShell launcher below, which starts the sidecar, waits for `/health`, and then starts the app.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run-debug.ps1
