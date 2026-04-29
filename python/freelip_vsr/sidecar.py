@@ -11,9 +11,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Protocol, cast
 from urllib.parse import unquote, urlsplit
 
+from . import cnvsrc_runtime
 from . import check_model
 from .model_registry import ERROR_EXIT_CODES, READY_EXIT_CODE, get_model_config
 
@@ -345,8 +347,44 @@ def build_backend(model_id: str = MODEL_ID, device: str = "cpu", *, fixture_mode
     if fixture_mode:
         return FixtureCnvsrcBackend(readiness_report=report, device=schema_device)
     if report.get("ready") is True:
-        return CnvsrcBackend(readiness_report=report, device=schema_device)
+        try:
+            return CnvsrcBackend(
+                readiness_report=report,
+                device=schema_device,
+                runtime_runner=cnvsrc_runtime.load_runtime_runner(
+                    adapter_ref=cnvsrc_runtime.adapter_ref_from_env(),
+                    checkpoint_path=checkpoint_path_from_report(report),
+                    device=schema_device,
+                ),
+            )
+        except Exception as exc:
+            failed_report = dict(report)
+            if isinstance(exc, cnvsrc_runtime.RuntimeAdapterError):
+                error_code = exc.error_code
+                message = exc.message
+                details = exc.details
+            else:
+                error_code = "RUNTIME_IMPORT_FAILED"
+                message = f"cnvsrc2025 runtime adapter load failed: {exc.__class__.__name__}"
+                details = {"runtime_adapter": {"runner_loaded": False, "factory_error": exc.__class__.__name__}}
+            failed_report.update(
+                {
+                    "ready": False,
+                    "status": error_code,
+                    "error_code": error_code,
+                    "message": message,
+                }
+            )
+            failed_report.update(details)
+            return UnavailableCnvsrcBackend(readiness_report=failed_report, device=schema_device)
     return UnavailableCnvsrcBackend(readiness_report=report, device=schema_device)
+
+
+def checkpoint_path_from_report(report: JsonObject) -> Path:
+    checkpoint = report.get("checkpoint")
+    if isinstance(checkpoint, dict) and isinstance(checkpoint.get("path"), str):
+        return Path(checkpoint["path"])
+    return Path("")
 
 
 def readiness_report(model_id: str, device: str) -> JsonObject:
@@ -422,6 +460,7 @@ def normalize_device_for_schema(device: str) -> str:
 class CnvsrcBackend:
     readiness_report: JsonObject
     device: str = "cpu"
+    runtime_runner: cnvsrc_runtime.RuntimeRunner | None = None
 
     def status(self) -> JsonObject:
         return {
@@ -438,13 +477,38 @@ class CnvsrcBackend:
         }
 
     def decode(self, request_payload: JsonObject) -> JsonObject:
-        return build_candidate_response(
+        if self.runtime_runner is None:
+            raise SidecarError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "RUNTIME_IMPORT_FAILED",
+                "cnvsrc2025 runtime runner is not configured",
+                {"candidates": []},
+            )
+        started = time.perf_counter_ns()
+        try:
+            candidates = list(self.runtime_runner.decode(request_payload))
+        except cnvsrc_runtime.RuntimeDecodeError as exc:
+            details = {"candidates": []}
+            details.update(exc.details)
+            raise SidecarError(HTTPStatus.SERVICE_UNAVAILABLE, exc.error_code, exc.message, details) from exc
+        except Exception as exc:
+            raise SidecarError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "INFERENCE_FAILED",
+                f"cnvsrc2025 inference failed: {exc.__class__.__name__}",
+                {"candidates": []},
+            ) from exc
+        return build_runtime_candidate_response(
             request_payload=request_payload,
             runtime_id=self.runtime_id(),
             device=self.device,
+            runtime_candidates=candidates,
+            started_ns=started,
         )
 
     def runtime_id(self) -> str:
+        if self.runtime_runner is not None:
+            return self.runtime_runner.runtime_id
         return f"cnvsrc2025-runtime-{self.device}"
 
 
@@ -495,8 +559,7 @@ class FixtureCnvsrcBackend:
 
     def status(self) -> JsonObject:
         error_code = self.readiness_report.get("error_code")
-        ready = bool(self.readiness_report.get("ready"))
-        status = self.readiness_report.get("status") or ("MODEL_READY" if ready else "CHECKPOINT_MISSING")
+        readiness_status = self.readiness_report.get("status") or "CHECKPOINT_MISSING"
         if error_code is not None and error_code not in READINESS_ERROR_CODES:
             error_code = "RUNTIME_IMPORT_FAILED"
         return {
@@ -504,11 +567,13 @@ class FixtureCnvsrcBackend:
             "model_id": MODEL_ID,
             "runtime_id": self.runtime_id(),
             "device": self.device,
-            "ready": ready,
-            "status": status,
+            "ready": False,
+            "status": "FIXTURE_MODE",
             "error_code": error_code,
-            "backend": "fixture" if not ready else "cnvsrc2025",
-            "fallback_active": not ready,
+            "readiness_status": readiness_status,
+            "fixture_mode": True,
+            "backend": "fixture",
+            "fallback_active": True,
             "exit_code": self.readiness_report.get("exit_code"),
         }
 
@@ -549,6 +614,59 @@ def build_candidate_response(request_payload: JsonObject, runtime_id: str, devic
         },
         "created_at_ms": int(time.time() * 1000),
     }
+
+
+def build_runtime_candidate_response(
+    *,
+    request_payload: JsonObject,
+    runtime_id: str,
+    device: str,
+    runtime_candidates: list[cnvsrc_runtime.RuntimeCandidate],
+    started_ns: int,
+) -> JsonObject:
+    candidates = runtime_candidates[:5]
+    if not candidates:
+        raise SidecarError(
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            "INFERENCE_FAILED",
+            "cnvsrc2025 inference returned no candidates",
+            {"candidates": []},
+        )
+    quality_flags = request_payload["quality_flags"]
+    quality_ok = quality_allows_auto_insert(quality_flags)
+    first_ms = elapsed_ms(started_ns)
+    final_ms = max(first_ms, elapsed_ms(started_ns))
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "request_id": request_payload["request_id"],
+        "session_id": request_payload["session_id"],
+        "model": {
+            "model_id": MODEL_ID,
+            "runtime_id": runtime_id,
+            "device": device,
+        },
+        "candidates": [
+            {
+                "schema_version": SCHEMA_VERSION,
+                "rank": index + 1,
+                "text": candidate.text,
+                "score": clamp_score(candidate.score),
+                "source": MODEL_ID,
+                "is_auto_insert_eligible": quality_ok and index == 0 and candidate.score >= 0.80,
+            }
+            for index, candidate in enumerate(candidates)
+        ],
+        "quality_flags": quality_flags,
+        "timing_ms": {
+            "roi_received_to_first_candidate": first_ms,
+            "roi_received_to_final": final_ms,
+        },
+        "created_at_ms": int(time.time() * 1000),
+    }
+
+
+def clamp_score(score: float) -> float:
+    return min(1.0, max(0.0, float(score)))
 
 
 def elapsed_ms(started_ns: int) -> int:

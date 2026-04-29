@@ -16,6 +16,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from freelip_vsr import sidecar
+from freelip_vsr import cnvsrc_runtime
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -313,13 +314,128 @@ def test_default_missing_artifact_backend_fails_closed(monkeypatch: pytest.Monke
 
 
 def test_ready_readiness_selects_cnvsrc_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    report = {"ready": True, "error_code": None, "status": "MODEL_READY", "exit_code": 0}
+    report = {
+        "ready": True,
+        "error_code": None,
+        "status": "MODEL_READY",
+        "exit_code": 0,
+        "checkpoint": {"path": "/models/cnvsrc2025.pth"},
+    }
+
+    class FakeRunner:
+        runtime_id = "cnvsrc2025-official-fake-cpu"
+
+        def decode(self, request_payload: dict[str, Any]) -> list[cnvsrc_runtime.RuntimeCandidate]:
+            return [cnvsrc_runtime.RuntimeCandidate(text="打开设置", score=0.91)]
+
     monkeypatch.setattr(sidecar, "readiness_report", lambda model_id, device: report)
+    monkeypatch.setattr(
+        sidecar.cnvsrc_runtime,
+        "load_runtime_runner",
+        lambda *, adapter_ref, checkpoint_path, device: FakeRunner(),
+    )
 
     backend = sidecar.build_backend(model_id="cnvsrc2025", device="cpu")
 
     assert backend.status()["backend"] == "cnvsrc2025"
     assert backend.status()["ready"] is True
+
+
+def test_ready_cnvsrc_backend_uses_runtime_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, Any]] = []
+    report = {
+        "ready": True,
+        "error_code": None,
+        "status": "MODEL_READY",
+        "exit_code": 0,
+        "checkpoint": {"path": "/models/cnvsrc2025.pth"},
+    }
+
+    class FakeRunner:
+        runtime_id = "cnvsrc2025-official-fake-cpu"
+
+        def decode(self, request_payload: dict[str, Any]) -> list[cnvsrc_runtime.RuntimeCandidate]:
+            calls.append(request_payload)
+            return [
+                cnvsrc_runtime.RuntimeCandidate(text="打开设置", score=0.91),
+                cnvsrc_runtime.RuntimeCandidate(text="打开射灯", score=0.22),
+            ]
+
+    monkeypatch.setattr(sidecar, "readiness_report", lambda model_id, device: report)
+    monkeypatch.setattr(
+        sidecar.cnvsrc_runtime,
+        "load_runtime_runner",
+        lambda *, adapter_ref, checkpoint_path, device: FakeRunner(),
+    )
+
+    backend = sidecar.build_backend(model_id="cnvsrc2025", device="cpu")
+    response = backend.decode(roi_request())
+
+    validate_candidate_response(response)
+    assert calls == [roi_request()]
+    assert response["model"]["runtime_id"] == "cnvsrc2025-official-fake-cpu"
+    assert [candidate["text"] for candidate in response["candidates"]] == ["打开设置", "打开射灯"]
+    assert response["candidates"][0]["source"] == "cnvsrc2025"
+    assert response["candidates"][0]["is_auto_insert_eligible"] is True
+
+
+def test_runtime_failure_is_returned_without_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "ready": True,
+        "error_code": None,
+        "status": "MODEL_READY",
+        "exit_code": 0,
+        "checkpoint": {"path": "/models/cnvsrc2025.pth"},
+    }
+
+    class FailingRunner:
+        runtime_id = "cnvsrc2025-official-failing-cpu"
+
+        def decode(self, request_payload: dict[str, Any]) -> list[cnvsrc_runtime.RuntimeCandidate]:
+            raise cnvsrc_runtime.RuntimeDecodeError("INFERENCE_FAILED", "shape mismatch")
+
+    monkeypatch.setattr(sidecar, "readiness_report", lambda model_id, device: report)
+    monkeypatch.setattr(
+        sidecar.cnvsrc_runtime,
+        "load_runtime_runner",
+        lambda *, adapter_ref, checkpoint_path, device: FailingRunner(),
+    )
+
+    backend = sidecar.build_backend(model_id="cnvsrc2025", device="cpu")
+
+    with pytest.raises(sidecar.SidecarError) as exc_info:
+        backend.decode(roi_request())
+
+    assert exc_info.value.status == HTTPStatus.SERVICE_UNAVAILABLE
+    assert exc_info.value.error_code == "INFERENCE_FAILED"
+    assert exc_info.value.details["candidates"] == []
+    assert "Traceback" not in str(exc_info.value.details)
+
+
+def test_runtime_factory_failure_selects_unavailable_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {
+        "ready": True,
+        "error_code": None,
+        "status": "MODEL_READY",
+        "exit_code": 0,
+        "checkpoint": {"path": "/models/cnvsrc2025.pth"},
+    }
+
+    def fail_load(*, adapter_ref: str | None, checkpoint_path: Path, device: str) -> object:
+        raise RuntimeError("adapter exploded while loading model")
+
+    monkeypatch.setattr(sidecar, "readiness_report", lambda model_id, device: report)
+    monkeypatch.setattr(sidecar.cnvsrc_runtime, "load_runtime_runner", fail_load)
+
+    backend = sidecar.build_backend(model_id="cnvsrc2025", device="cpu")
+    status = backend.status()
+
+    assert status["ready"] is False
+    assert status["error_code"] == "RUNTIME_IMPORT_FAILED"
+    with pytest.raises(sidecar.SidecarError) as exc_info:
+        backend.decode(roi_request())
+    assert exc_info.value.error_code == "MODEL_UNAVAILABLE"
+    assert exc_info.value.details["readiness_error_code"] == "RUNTIME_IMPORT_FAILED"
 
 
 def test_unready_readiness_selects_unavailable_backend_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -345,11 +461,28 @@ def test_unready_readiness_fixture_mode_returns_deterministic_candidates(monkeyp
     status = backend.status()
     assert status["backend"] == "fixture"
     assert status["ready"] is False
+    assert status["status"] == "FIXTURE_MODE"
+    assert status["fixture_mode"] is True
+    assert status["readiness_status"] == "CHECKPOINT_MISSING"
     assert status["fallback_active"] is True
     response = backend.decode(roi_request())
     validate_candidate_response(response)
     assert response["model"]["runtime_id"] == "cnvsrc2025-fixture-cpu-checkpoint-gated"
     assert response["candidates"][0]["source"] == "cnvsrc2025"
+
+
+def test_ready_readiness_fixture_mode_still_reports_fixture_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {"ready": True, "error_code": None, "status": "MODEL_READY", "exit_code": 0}
+    monkeypatch.setattr(sidecar, "readiness_report", lambda model_id, device: report)
+    backend = sidecar.build_backend(model_id="cnvsrc2025", device="cpu", fixture_mode=True)
+    status = backend.status()
+
+    assert status["backend"] == "fixture"
+    assert status["ready"] is False
+    assert status["status"] == "FIXTURE_MODE"
+    assert status["readiness_status"] == "MODEL_READY"
+    assert status["fixture_mode"] is True
+    assert status["fallback_active"] is True
 
 
 def test_auth_rejections_are_logged_without_token_values() -> None:
