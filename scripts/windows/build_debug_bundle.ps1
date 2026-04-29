@@ -34,17 +34,23 @@ try {
 
 $debugExeCandidates = @(
   (Join-Path $repoRoot "src-tauri\target\debug\freelip.exe"),
-  (Join-Path $repoRoot "src-tauri\target\debug\freelip-tauri.exe")
+  (Join-Path $repoRoot "src-tauri\target\debug\freelip-tauri.exe"),
+  (Join-Path $repoRoot "target\debug\freelip.exe"),
+  (Join-Path $repoRoot "target\debug\freelip-tauri.exe")
 )
 $debugExe = $debugExeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $debugExe) {
   $debugExe = $debugExeCandidates[0]
 }
-$debugBundle = Join-Path $repoRoot "src-tauri\target\debug\bundle"
+$debugBundleCandidates = @(
+  (Join-Path $repoRoot "src-tauri\target\debug\bundle"),
+  (Join-Path $repoRoot "target\debug\bundle")
+)
+$debugBundle = $debugBundleCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (Test-Path $debugExe) {
   Copy-Item -Force $debugExe (Join-Path $appDir "freelip.exe")
 }
-if (Test-Path $debugBundle) {
+if ($debugBundle -and (Test-Path $debugBundle)) {
   Copy-Item -Recurse -Force $debugBundle (Join-Path $appDir "tauri-bundle")
 }
 if (-not (Test-Path (Join-Path $appDir "freelip.exe"))) {
@@ -117,6 +123,15 @@ if (Test-Path `$appExe) {
 "@
 $launcher | Set-Content -Encoding UTF8 -Path (Join-Path $bundleRoot "run-debug.ps1")
 
+$batchLauncher = @"
+@echo off
+setlocal
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-debug.ps1" %*
+if errorlevel 1 pause
+"@
+$batchLauncher | Set-Content -Encoding ASCII -Path (Join-Path $bundleRoot "Run-FreeLip.bat")
+
 $diagnostics = [ordered]@{
   schema_version = "1.0.0"
   profile = "windows-debug-bundle"
@@ -133,6 +148,8 @@ $diagnostics = [ordered]@{
   fixture_mode_requested = [bool]$FixtureMode
   tauri_debug_exe = $debugExe
   tauri_debug_exe_candidates = $debugExeCandidates
+  tauri_debug_bundle = $debugBundle
+  tauri_debug_bundle_candidates = $debugBundleCandidates
   tauri_debug_exe_present = Test-Path $debugExe
   expected_missing_checkpoint_code = "CHECKPOINT_MISSING"
   commands = [ordered]@{

@@ -85,8 +85,38 @@ assertContains(
 );
 assertContains(
   "scripts/windows/build_debug_bundle.ps1",
+  "Run-FreeLip.bat",
+  "one-click debug launcher batch file",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-debug.ps1" %*',
+  "batch launcher forwarding to run-debug.ps1",
+);
+assertContains(
+  "scripts/windows/README.md",
+  "Run-FreeLip.bat",
+  "one-click batch launcher documentation",
+);
+assertContains(
+  "README.md",
+  "Run-FreeLip.bat",
+  "top-level one-click batch launcher instructions",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
   "freelip-tauri.exe",
   "actual Tauri debug executable name fallback",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  'Join-Path $repoRoot "target\\debug\\freelip-tauri.exe"',
+  "workspace-root Tauri debug executable fallback",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  'Join-Path $repoRoot "target\\debug\\bundle"',
+  "workspace-root Tauri debug bundle fallback",
 );
 assertContains(
   "scripts/windows/build_debug_bundle.ps1",
