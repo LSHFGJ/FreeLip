@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from . import cnvsrc_runtime
 from .model_registry import (
     ERROR_EXIT_CODES,
     READY_EXIT_CODE,
@@ -178,6 +179,15 @@ def verify_runtime(device: str, checkpoint_path: Path) -> dict[str, Any]:
     return report
 
 
+def verify_model_runtime_adapter(model_id: str, checkpoint_path: Path, device: str) -> dict[str, Any]:
+    if model_id != "cnvsrc2025":
+        return {"required": False, "configured": False, "factory_resolved": False, "runner_loaded": False}
+    try:
+        return cnvsrc_runtime.verify_runtime_adapter(checkpoint_path=checkpoint_path, device=device)
+    except cnvsrc_runtime.RuntimeAdapterError as exc:
+        raise ReadinessFailure(exc.error_code, exc.message, exc.details) from exc
+
+
 def build_base_report(
     config: ModelConfig,
     device: str,
@@ -262,6 +272,7 @@ def run_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             report["data"].update(verify_data_root(data_root))
 
         report["runtime"] = verify_runtime(args.device, checkpoint_path)
+        report["runtime_adapter"] = verify_model_runtime_adapter(config.model_id, checkpoint_path, args.device)
         report.update(
             {
                 "ready": True,
@@ -272,7 +283,7 @@ def run_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         )
         return READY_EXIT_CODE, report
     except ReadinessFailure as exc:
-        for key in ("checkpoint", "data", "source_verification", "runtime"):
+        for key in ("checkpoint", "data", "source_verification", "runtime", "runtime_adapter"):
             current = report.get(key)
             if not isinstance(current, dict):
                 continue

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import types
 from pathlib import Path
 
@@ -139,6 +140,149 @@ def test_torch_native_import_failure_is_classified_without_traceback(
     assert exit_code == ERROR_EXIT_CODES["RUNTIME_IMPORT_FAILED"]
     assert report["error_code"] == "RUNTIME_IMPORT_FAILED"
     assert report["source_verification"]["checkpoint_source_verified"] is True
+    assert "Traceback" not in output.out
+    assert "Traceback" not in output.err
+
+
+def test_cnvsrc_requires_runtime_adapter_after_checkpoint_and_torch_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    checkpoint_path = tmp_path / "tiny.pth"
+    checkpoint_path.write_bytes(b"ok")
+    report_path = tmp_path / "runtime-adapter-missing.json"
+    fake_torch = types.SimpleNamespace(
+        __version__="fake",
+        version=types.SimpleNamespace(cuda=None),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+    )
+    monkeypatch.setattr(check_model.importlib, "import_module", lambda _: fake_torch)
+    monkeypatch.delenv("FREELIP_CNVSRC2025_RUNTIME_ADAPTER", raising=False)
+
+    exit_code = main(
+        [
+            "--model",
+            "cnvsrc2025",
+            "--device",
+            "cpu",
+            "--checkpoint",
+            str(checkpoint_path),
+            "--checkpoint-sha256",
+            "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+            "--checkpoint-size",
+            "2",
+            "--json",
+            str(report_path),
+        ]
+    )
+
+    output = capsys.readouterr()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+
+    assert exit_code == ERROR_EXIT_CODES["RUNTIME_IMPORT_FAILED"]
+    assert report["ready"] is False
+    assert report["error_code"] == "RUNTIME_IMPORT_FAILED"
+    assert report["runtime"]["checkpoint_deserialized"] is False
+    assert report["runtime_adapter"]["configured"] is False
+    assert "FREELIP_CNVSRC2025_RUNTIME_ADAPTER" in report["message"]
+    assert "Traceback" not in output.out
+    assert "Traceback" not in output.err
+
+
+def test_cnvsrc_runtime_adapter_factory_failure_blocks_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    checkpoint_path = tmp_path / "tiny.pth"
+    checkpoint_path.write_bytes(b"ok")
+    report_path = tmp_path / "runtime-adapter-factory-failed.json"
+    fake_torch = types.SimpleNamespace(
+        __version__="fake",
+        version=types.SimpleNamespace(cuda=None),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+    )
+    fake_module = types.ModuleType("fake_cnvsrc_adapter")
+
+    def create_runner(*, checkpoint_path: Path, device: str) -> object:
+        raise RuntimeError("adapter failed while loading official baseline")
+
+    fake_module.create_runner = create_runner
+    monkeypatch.setattr(check_model.importlib, "import_module", lambda name: fake_torch if name == "torch" else fake_module)
+    monkeypatch.setitem(sys.modules, "fake_cnvsrc_adapter", fake_module)
+    monkeypatch.setenv("FREELIP_CNVSRC2025_RUNTIME_ADAPTER", "fake_cnvsrc_adapter:create_runner")
+
+    exit_code = main(
+        [
+            "--model",
+            "cnvsrc2025",
+            "--device",
+            "cpu",
+            "--checkpoint",
+            str(checkpoint_path),
+            "--checkpoint-sha256",
+            "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+            "--checkpoint-size",
+            "2",
+            "--json",
+            str(report_path),
+        ]
+    )
+
+    output = capsys.readouterr()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+
+    assert exit_code == ERROR_EXIT_CODES["RUNTIME_IMPORT_FAILED"]
+    assert report["ready"] is False
+    assert report["error_code"] == "RUNTIME_IMPORT_FAILED"
+    assert report["runtime_adapter"]["configured"] is True
+    assert report["runtime_adapter"]["factory_resolved"] is True
+    assert report["runtime_adapter"]["runner_loaded"] is False
+    assert "RuntimeError" in report["message"]
+    assert "adapter failed while loading official baseline" not in report["message"]
+    assert "Traceback" not in output.out
+    assert "Traceback" not in output.err
+
+
+def test_cnvsrc_runtime_adapter_bad_runner_blocks_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    checkpoint_path = tmp_path / "tiny.pth"
+    checkpoint_path.write_bytes(b"ok")
+    report_path = tmp_path / "runtime-adapter-bad-runner.json"
+    fake_torch = types.SimpleNamespace(
+        __version__="fake",
+        version=types.SimpleNamespace(cuda=None),
+        cuda=types.SimpleNamespace(is_available=lambda: False),
+    )
+    fake_module = types.ModuleType("bad_cnvsrc_adapter")
+    fake_module.create_runner = lambda *, checkpoint_path, device: object()
+    monkeypatch.setattr(check_model.importlib, "import_module", lambda name: fake_torch if name == "torch" else fake_module)
+    monkeypatch.setitem(sys.modules, "bad_cnvsrc_adapter", fake_module)
+    monkeypatch.setenv("FREELIP_CNVSRC2025_RUNTIME_ADAPTER", "bad_cnvsrc_adapter:create_runner")
+
+    exit_code = main(
+        [
+            "--model",
+            "cnvsrc2025",
+            "--device",
+            "cpu",
+            "--checkpoint",
+            str(checkpoint_path),
+            "--checkpoint-sha256",
+            "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+            "--checkpoint-size",
+            "2",
+            "--json",
+            str(report_path),
+        ]
+    )
+
+    output = capsys.readouterr()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+
+    assert exit_code == ERROR_EXIT_CODES["RUNTIME_IMPORT_FAILED"]
+    assert report["ready"] is False
+    assert report["error_code"] == "RUNTIME_IMPORT_FAILED"
+    assert report["runtime_adapter"]["runner_loaded"] is False
+    assert "must return a runner" in report["message"]
     assert "Traceback" not in output.out
     assert "Traceback" not in output.err
 
