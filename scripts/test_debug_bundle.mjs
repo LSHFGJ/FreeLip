@@ -23,6 +23,7 @@ function assertContains(relativePath, expected, reason) {
 }
 
 const packageJson = JSON.parse(readText("package.json"));
+const debugConfig = JSON.parse(readText("config/freelip.debug.json"));
 
 assert.equal(
   packageJson.scripts?.["bundle:debug:win"],
@@ -38,6 +39,11 @@ assert.equal(
   packageJson.scripts?.["test:debug-bundle"],
   "node scripts/test_debug_bundle.mjs",
   "package.json should expose debug bundle validation",
+);
+assert.equal(
+  debugConfig.sidecar?.fixture_mode,
+  false,
+  "debug config should default to real-runtime mode; use -FixtureMode only for contract fixtures",
 );
 
 assertContains(
@@ -103,6 +109,11 @@ assertContains(
   "redacted token diagnostics",
 );
 assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "FREELIP_CNVSRC2025_RUNTIME_ADAPTER",
+  "runtime adapter startup diagnostics",
+);
+assertContains(
   "config/freelip.debug.json",
   "CHECKPOINT_MISSING",
   "honest missing-checkpoint diagnostic expectation",
@@ -116,6 +127,21 @@ assertContains(
   "config/freelip.debug.json",
   "FREELIP_MAVSR2025_CHECKPOINT",
   "actual MAVSR checkpoint environment variable",
+);
+assertContains(
+  "config/freelip.debug.json",
+  "FREELIP_CNVSRC2025_RUNTIME_ADAPTER",
+  "actual CNVSRC runtime adapter environment variable",
+);
+assertContains(
+  ".env.example",
+  "FREELIP_CNVSRC2025_RUNTIME_ADAPTER",
+  "placeholder CNVSRC runtime adapter environment variable",
+);
+assertContains(
+  "models/DEBUG_BUNDLE_README.md",
+  "module:function",
+  "runtime adapter factory guidance",
 );
 assertContains(
   "README.md",

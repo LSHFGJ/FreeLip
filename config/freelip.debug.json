@@ -5,7 +5,7 @@
     "host": "127.0.0.1",
     "port": 8765,
     "token": "debug-local-token-change-before-sharing",
-    "fixture_mode": true,
+    "fixture_mode": false,
     "expected_missing_checkpoint_code": "CHECKPOINT_MISSING"
   },
   "paths": {
@@ -16,6 +16,9 @@
     "checkpoint_env": {
       "cnvsrc2025": "FREELIP_CNVSRC2025_CHECKPOINT",
       "mavsr2025": "FREELIP_MAVSR2025_CHECKPOINT"
+    },
+    "runtime_adapter_env": {
+      "cnvsrc2025": "FREELIP_CNVSRC2025_RUNTIME_ADAPTER"
     }
   },
   "privacy": {
@@ -27,6 +30,7 @@
   "notes": [
     "This debug profile is internal research only and not production ready.",
     "Model weights are not bundled; CHECKPOINT_MISSING is the expected diagnostic until local checkpoints are installed.",
+    "Real CNVSRC2025 inference also requires FREELIP_CNVSRC2025_RUNTIME_ADAPTER to point at a module:function adapter for the official baseline runtime.",
     "Fixture mode can exercise the sidecar contract without claiming real VSR quality."
   ]
 }

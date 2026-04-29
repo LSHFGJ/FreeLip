@@ -88,6 +88,9 @@ $diagnostic = [ordered]@{
     cnvsrc2025 = "FREELIP_CNVSRC2025_CHECKPOINT"
     mavsr2025 = "FREELIP_MAVSR2025_CHECKPOINT"
   }
+  runtime_adapter_env = [ordered]@{
+    cnvsrc2025 = "FREELIP_CNVSRC2025_RUNTIME_ADAPTER"
+  }
 }
 
 $diagnostic | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -Path (Join-Path $logDir "sidecar-startup-diagnostics.json")
