@@ -888,7 +888,7 @@ def require_number_range(
 def parser() -> argparse.ArgumentParser:
     parser_ = argparse.ArgumentParser(description="Run the FreeLip local-only VSR sidecar.")
     parser_.add_argument("--host", default=ALLOWED_BIND_HOST, help="Bind host; must be the local loopback address.")
-    parser_.add_argument("--port", type=int, default=8765, help="Bind port.")
+    parser_.add_argument("--port", type=int, default=18765, help="Bind port.")
     parser_.add_argument("--token", required=True, help="Per-session token supplied by the Rust app.")
     parser_.add_argument("--model", default=MODEL_ID, choices=(MODEL_ID,), help="VSR model backend.")
     parser_.add_argument("--device", default="cpu", choices=("cpu", "cuda"), help="Requested model device.")

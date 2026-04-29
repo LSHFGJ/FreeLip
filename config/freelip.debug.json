@@ -3,7 +3,7 @@
   "profile": "windows-debug-bundle",
   "sidecar": {
     "host": "127.0.0.1",
-    "port": 8765,
+    "port": 18765,
     "token": "debug-local-token-change-before-sharing",
     "fixture_mode": false,
     "expected_missing_checkpoint_code": "CHECKPOINT_MISSING"

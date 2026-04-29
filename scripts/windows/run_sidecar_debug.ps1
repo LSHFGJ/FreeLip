@@ -1,6 +1,6 @@
 param(
   [string]$HostName = "127.0.0.1",
-  [int]$Port = 8765,
+  [int]$Port = 18765,
   [string]$Token = "debug-local-token-change-before-sharing",
   [ValidateSet("cpu", "cuda")]
   [string]$Device = "cpu",
