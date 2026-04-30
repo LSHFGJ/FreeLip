@@ -43,9 +43,13 @@ If CNVSRC2025 and the manual `MAVSR2025` check are blocked, document `CAS-VSR-S1
 
 ```bash
 npm install
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 PYTHONPATH=/home/lshfgj/FreeLip/python python3 -m pytest python/tests -q
 npm run build
 ```
+
+`requirements.txt` is the CUDA 11.8 / PyTorch 2.0.1 pip bootstrap for the local Python sidecar. Use Python 3.10 or 3.11. If your GPU, driver, or Python version needs a different PyTorch build, install the matching PyTorch package first and then keep using the readiness checks below.
 
 For development:
 

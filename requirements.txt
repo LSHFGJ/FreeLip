@@ -1,0 +1,32 @@
+# FreeLip Python runtime bootstrap for the local CNVSRC2025 VSR sidecar.
+#
+# Target: Windows Python 3.10/3.11 + PyTorch 2.0.1 CUDA 11.8 wheels.
+# This file intentionally does not download checkpoints, datasets, ROI media,
+# or private adapters. Configure those with FREELIP_CNVSRC2025_* env vars.
+#
+# If your machine needs a different CUDA/CPU build, use the PyTorch selector
+# instead of this file: https://pytorch.org/get-started/locally/
+
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# FreeLip sidecar package dependencies and local verification tools.
+jsonschema>=4.23
+pytest>=9.0
+
+# CNVSRC2025 official-style CUDA runtime pins.
+torch==2.0.1+cu118
+torchvision==0.15.2+cu118
+torchaudio==2.0.2+cu118
+pytorch-lightning==1.9.3
+torchmetrics==0.11.2
+
+# Additional dependencies from the CNVSRC2025 VSR baseline reqs.txt.
+av==10.0.0
+hydra-core==1.3.2
+omegaconf==2.3.0
+opencv-python==4.7.0.72
+scikit-image==0.21.0
+tqdm==4.65.0
+sentencepiece==0.1.99
+six==1.16.0
+tensorboard==2.12.1

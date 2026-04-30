@@ -68,6 +68,27 @@ assertContains(
   "freelip-vsr-sidecar = \"freelip_vsr.sidecar:main\"",
   "sidecar console script entry point",
 );
+assertExists("requirements.txt");
+assertContains(
+  "requirements.txt",
+  "https://download.pytorch.org/whl/cu118",
+  "PyTorch CUDA 11.8 wheel index for one-command runtime bootstrap",
+);
+assertContains(
+  "requirements.txt",
+  "torch==2.0.1+cu118",
+  "CNVSRC2025 CUDA PyTorch runtime pin",
+);
+assertContains(
+  "requirements.txt",
+  "Python 3.10/3.11",
+  "Python version target for pinned PyTorch runtime",
+);
+assertContains(
+  "README.md",
+  "python -m pip install -r requirements.txt",
+  "documented pip requirements bootstrap command",
+);
 assertContains(
   "python/pyproject.toml",
   "[tool.setuptools.packages.find]",
@@ -229,6 +250,46 @@ assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
   "FREELIP_CNVSRC2025_RUNTIME_ADAPTER",
   "runtime adapter startup diagnostics",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "Set-FreeLipCheckpointEnvFallback",
+  "bundle sidecar launcher discovers source checkout checkpoints when env vars are unset",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "model_avg_cncvs_2_3_cnvsrc.pth",
+  "CNVSRC2025 checkpoint fallback filename",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "FREELIP_CNVSRC2025_CHECKPOINT",
+  "CNVSRC2025 checkpoint env fallback",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "Set-FreeLipEnvValueFallback",
+  "bundle sidecar launcher discovers local runtime adapter env when unset",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "freelip_cnvsrc2025_adapter:create_runner",
+  "local CNVSRC2025 runtime adapter fallback",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "FREELIP_CNVSRC2025_CODE_ROOT",
+  "local CNVSRC2025 code root env fallback",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "PathSeparator",
+  "debug sidecar preserves and extends PYTHONPATH instead of replacing it",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "ProviderPath",
+  "debug sidecar normalizes PowerShell provider-qualified paths for Windows Python",
 );
 assertContains(
   "config/freelip.debug.json",
