@@ -1,0 +1,37 @@
+name: freelip
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - jsonschema>=4.23
+  - pytest>=9.0
+
+  # CNVSRC2025 official-style CUDA runtime pins.
+  - pytorch=2.0.1
+  - torchvision=0.15.2
+  - torchaudio=2.0.2
+  - pytorch-cuda=11.8
+  - pytorch-lightning=1.9.3
+  - torchmetrics=0.11.2
+
+  # Native/media stack dependencies are intentionally Conda-managed on Windows.
+  - av=10.0.0
+  - ffmpeg
+  - opencv=4.7.0
+  - scikit-image=0.21.0
+
+  # Additional CNVSRC2025 VSR baseline dependencies.
+  - hydra-core=1.3.2
+  - omegaconf=2.3.0
+  - tqdm=4.65.0
+  - sentencepiece=0.1.99
+  - six=1.16.0
+  - tensorboard=2.12.1
+
+  - pip:
+      # Install the local FreeLip sidecar/evaluation package after Conda resolves
+      # the native CUDA/media stack.
+      - -e ./python
