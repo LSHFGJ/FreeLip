@@ -480,13 +480,20 @@ def test_runtime_factory_failure_selects_unavailable_backend(monkeypatch: pytest
 
 
 def test_unready_readiness_selects_unavailable_backend_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    report = {"ready": False, "error_code": "CHECKPOINT_MISSING", "status": "CHECKPOINT_MISSING", "exit_code": 2}
+    report = {
+        "ready": False,
+        "error_code": "CHECKPOINT_MISSING",
+        "status": "CHECKPOINT_MISSING",
+        "exit_code": 2,
+        "message": "checkpoint not found at /models/cnvsrc2025.pth",
+    }
     monkeypatch.setattr(sidecar, "readiness_report", lambda model_id, device: report)
     backend = sidecar.build_backend(model_id="cnvsrc2025", device="cpu")
     status = backend.status()
     assert status["backend"] == "cnvsrc2025"
     assert status["ready"] is False
     assert status["fallback_active"] is False
+    assert status["message"] == "checkpoint not found at /models/cnvsrc2025.pth"
     with pytest.raises(sidecar.SidecarError) as exc_info:
         backend.decode(roi_request())
     assert exc_info.value.status == HTTPStatus.SERVICE_UNAVAILABLE

@@ -549,6 +549,7 @@ class UnavailableCnvsrcBackend:
 
     def status(self) -> JsonObject:
         readiness_error = readiness_error_code(self.readiness_report)
+        message = self.readiness_report.get("message")
         return {
             "schema_version": SCHEMA_VERSION,
             "model_id": MODEL_ID,
@@ -560,6 +561,7 @@ class UnavailableCnvsrcBackend:
             "backend": "cnvsrc2025",
             "fallback_active": False,
             "exit_code": self.readiness_report.get("exit_code"),
+            "message": message if isinstance(message, str) else None,
         }
 
     def decode(self, request_payload: JsonObject) -> JsonObject:
