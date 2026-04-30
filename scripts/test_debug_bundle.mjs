@@ -68,26 +68,42 @@ assertContains(
   "freelip-vsr-sidecar = \"freelip_vsr.sidecar:main\"",
   "sidecar console script entry point",
 );
+assertExists("environment.yml");
+assertContains(
+  "environment.yml",
+  "name: freelip",
+  "Conda environment name",
+);
+assertContains(
+  "environment.yml",
+  "pytorch-cuda=11.8",
+  "Conda-managed CUDA runtime",
+);
+assertContains(
+  "environment.yml",
+  "av=10.0.0",
+  "Conda-managed PyAV dependency to avoid Windows pip source builds",
+);
+assertContains(
+  "environment.yml",
+  "- -e ./python",
+  "editable FreeLip Python package install",
+);
 assertExists("requirements.txt");
 assertContains(
-  "requirements.txt",
-  "https://download.pytorch.org/whl/cu118",
-  "PyTorch CUDA 11.8 wheel index for one-command runtime bootstrap",
-);
-assertContains(
-  "requirements.txt",
-  "torch==2.0.1+cu118",
-  "CNVSRC2025 CUDA PyTorch runtime pin",
-);
-assertContains(
-  "requirements.txt",
-  "Python 3.10/3.11",
-  "Python version target for pinned PyTorch runtime",
-);
-assertContains(
   "README.md",
-  "python -m pip install -r requirements.txt",
-  "documented pip requirements bootstrap command",
+  "conda env create -f environment.yml",
+  "documented Conda environment bootstrap command",
+);
+assertContains(
+  "requirements.txt",
+  "Prefer environment.yml on Windows",
+  "pip fallback warns about Conda environment preference",
+);
+assertContains(
+  "requirements.txt",
+  "av is intentionally omitted",
+  "pip fallback avoids PyAV source builds",
 );
 assertContains(
   "python/pyproject.toml",

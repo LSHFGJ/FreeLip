@@ -34,14 +34,14 @@ This is a manual gate only. FreeLip must not automatically switch from CNVSRC202
 
 ## Official CNVSRC fallback environment
 
-For the pip-based FreeLip bootstrap, use Python 3.10 or 3.11 and install the root requirements file from the repository root:
+For the recommended Conda-based FreeLip bootstrap, install the root environment file from the repository root:
 
 ```bash
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate freelip
 ```
 
-The root `requirements.txt` pins the CUDA 11.8 PyTorch 2.0.1 wheel set plus the CNVSRC2025 VSR `reqs.txt` dependencies. Prefer the active local PyTorch/CUDA runtime first. If imports or CUDA compatibility fail, the upstream baseline also documents an official-style conda environment:
+The root `environment.yml` pins Python 3.10, CUDA 11.8 PyTorch 2.0.1, FFmpeg/PyAV, and the CNVSRC2025 VSR `reqs.txt` dependencies. Prefer this Conda path on Windows because PyAV and FFmpeg are native media dependencies. If imports or CUDA compatibility fail, the upstream baseline also documents an official-style conda environment:
 
 ```bash
 conda create -y -n cnvsrc python==3.10.11
