@@ -126,6 +126,42 @@ function Add-FreeLipPythonPathEntry {
   }
 }
 
+function Resolve-FreeLipPythonExe {
+  $explicitPython = [Environment]::GetEnvironmentVariable("FREELIP_PYTHON_EXE", "Process")
+  if (-not [string]::IsNullOrWhiteSpace($explicitPython) -and (Test-Path $explicitPython)) {
+    return [ordered]@{ path = $explicitPython; source = "FREELIP_PYTHON_EXE" }
+  }
+
+  $condaPrefix = [Environment]::GetEnvironmentVariable("CONDA_PREFIX", "Process")
+  if (-not [string]::IsNullOrWhiteSpace($condaPrefix)) {
+    $condaPython = Join-Path $condaPrefix "python.exe"
+    if (Test-Path $condaPython) {
+      return [ordered]@{ path = $condaPython; source = "CONDA_PREFIX" }
+    }
+  }
+
+  $candidateRoots = @(
+    "D:\conda\envs\freelip",
+    "D:\ProgramData\miniforge3\envs\freelip",
+    "C:\ProgramData\miniforge3\envs\freelip",
+    (Join-Path $env:USERPROFILE ".conda\envs\freelip"),
+    (Join-Path $env:USERPROFILE "miniforge3\envs\freelip"),
+    (Join-Path $env:USERPROFILE "miniconda3\envs\freelip")
+  )
+
+  foreach ($candidateRoot in $candidateRoots) {
+    if ([string]::IsNullOrWhiteSpace($candidateRoot)) {
+      continue
+    }
+    $candidatePython = Join-Path $candidateRoot "python.exe"
+    if (Test-Path $candidatePython) {
+      return [ordered]@{ path = $candidatePython; source = "freelip-conda-env" }
+    }
+  }
+
+  return [ordered]@{ path = "python"; source = "PATH" }
+}
+
 $pythonPathEntries = New-Object System.Collections.Generic.List[string]
 Add-FreeLipPythonPathEntry -Entries $pythonPathEntries -PathValue (Join-Path $RepoRoot "python")
 
@@ -160,6 +196,8 @@ $logDir = Split-Path -Parent $LogPath
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $env:PYTHONPATH = $pythonPathEntries -join [System.IO.Path]::PathSeparator
+$pythonResolution = Resolve-FreeLipPythonExe
+$pythonExe = [string]$pythonResolution.path
 $arguments = @(
   "-m", "freelip_vsr.sidecar",
   "--host", $HostName,
@@ -175,8 +213,10 @@ if ($FixtureMode) {
 
 $diagnostic = [ordered]@{
   schema_version = "1.0.0"
-  command = "python -m freelip_vsr.sidecar --host $HostName --port $Port --token <redacted> --model cnvsrc2025 --device $Device$($(if ($FixtureMode) { ' --fixture-mode' } else { '' }))"
+  command = "$pythonExe -m freelip_vsr.sidecar --host $HostName --port $Port --token <redacted> --model cnvsrc2025 --device $Device$($(if ($FixtureMode) { ' --fixture-mode' } else { '' }))"
   repo_root = $RepoRoot.ToString()
+  python_executable = $pythonExe
+  python_resolution_source = [string]$pythonResolution.source
   pythonpath = $env:PYTHONPATH
   config_path = $ConfigPath
   host = $HostName
@@ -211,8 +251,8 @@ Write-Host "Writing sidecar log to $LogPath"
 if ($Detached) {
   $errorLogPath = [System.IO.Path]::ChangeExtension($LogPath, ".err.log")
   Remove-Item -Force -ErrorAction SilentlyContinue $LogPath, $errorLogPath
-  Start-Process -FilePath "python" -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput $LogPath -RedirectStandardError $errorLogPath | Out-Null
+  Start-Process -FilePath $pythonExe -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput $LogPath -RedirectStandardError $errorLogPath | Out-Null
   Write-Host "Detached FreeLip sidecar process started. Writing sidecar stderr to $errorLogPath"
   exit 0
 }
-& python @arguments 2>&1 | Tee-Object -FilePath $LogPath
+& $pythonExe @arguments 2>&1 | Tee-Object -FilePath $LogPath

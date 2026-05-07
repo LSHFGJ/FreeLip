@@ -29,6 +29,15 @@ function assertNotContains(relativePath, unexpected, reason) {
   assert.equal(matches, false, `${relativePath} should not contain ${reason}`);
 }
 
+function assertAppearsBefore(relativePath, before, after, reason) {
+  const text = readText(relativePath);
+  const beforeIndex = text.indexOf(before);
+  const afterIndex = text.indexOf(after);
+  assert.notEqual(beforeIndex, -1, `${relativePath} should contain ${before}`);
+  assert.notEqual(afterIndex, -1, `${relativePath} should contain ${after}`);
+  assert.equal(beforeIndex < afterIndex, true, `${relativePath} should order ${reason}`);
+}
+
 const packageJson = JSON.parse(readText("package.json"));
 const debugConfig = JSON.parse(readText("config/freelip.debug.json"));
 
@@ -204,13 +213,18 @@ assertContains(
 );
 assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
-  'Start-Process -FilePath "python"',
-  "detached mode starts Python sidecar directly instead of relying on a long-running PowerShell pipe",
+  'Start-Process -FilePath $pythonExe',
+  "detached mode starts the resolved Python sidecar directly instead of relying on a long-running PowerShell pipe",
 );
 assertContains(
   "scripts/windows/build_debug_bundle.ps1",
-  'http://`${sidecarHost}:`$sidecarPort/health',
-  "sidecar loopback health endpoint derived from debug config",
+  "sidecarPort/health",
+  "sidecar loopback health endpoint uses the configured debug port",
+);
+assertContains(
+  "scripts/windows/build_debug_bundle.ps1",
+  "sidecarHost",
+  "sidecar loopback health endpoint uses the configured debug host",
 );
 assertNotContains(
   "scripts/windows/build_debug_bundle.ps1",
@@ -301,6 +315,59 @@ assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
   "PathSeparator",
   "debug sidecar preserves and extends PYTHONPATH instead of replacing it",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "Resolve-FreeLipPythonExe",
+  "debug sidecar resolves the Conda FreeLip Python before falling back to PATH",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "FREELIP_PYTHON_EXE",
+  "explicit Python executable override for model runtime debugging",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "CONDA_PREFIX",
+  "active Conda environment Python fallback for model runtime debugging",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "D:\\conda\\envs\\freelip",
+  "Windows Conda env fallback for one-click debug launches",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "python_executable",
+  "selected Python executable startup diagnostics",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "python_resolution_source",
+  "selected Python resolution source startup diagnostics",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "& $pythonExe @arguments",
+  "foreground sidecar launch uses the resolved Python executable",
+);
+assertAppearsBefore(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "FREELIP_PYTHON_EXE",
+  "CONDA_PREFIX",
+  "explicit Python override before active Conda environment fallback",
+);
+assertAppearsBefore(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "CONDA_PREFIX",
+  "$candidateRoots = @(",
+  "active Conda environment before known FreeLip Conda paths",
+);
+assertAppearsBefore(
+  "scripts/windows/run_sidecar_debug.ps1",
+  "$candidateRoots = @(",
+  'source = "PATH"',
+  "known FreeLip Conda paths before PATH fallback",
 );
 assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
