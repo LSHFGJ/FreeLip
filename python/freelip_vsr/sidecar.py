@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -24,7 +25,10 @@ SCHEMA_VERSION = "1.0.0"
 MODEL_ID = "cnvsrc2025"
 FIXTURE_RUNTIME_ID = "cnvsrc2025-fixture"
 MAX_REQUEST_BYTES = 256 * 1024
+MAX_ROI_CLIP_REQUEST_BYTES = 16 * 1024 * 1024
+MAX_ROI_CLIP_BYTES = 12 * 1024 * 1024
 ALLOWED_BIND_HOST = "127.0.0.1"
+ALLOWED_ROI_CLIP_MIME_TYPES = {"video/webm", "video/mp4", "application/octet-stream"}
 QUALITY_REASON_CODES = {
     "face_not_found",
     "mouth_landmarks_missing",
@@ -141,6 +145,12 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
             response = self._state().backend.decode(payload)
             self._send_json(HTTPStatus.OK, response)
             return
+        if path == "/roi/clips":
+            self._require_token()
+            payload = self._read_json(max_bytes=MAX_ROI_CLIP_REQUEST_BYTES)
+            response = ingest_roi_clip(payload)
+            self._send_json(HTTPStatus.OK, response)
+            return
         if path == "/sessions":
             self._require_token()
             payload = self._read_json()
@@ -251,7 +261,7 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
         self._state().auth_events.append({"error_code": error_code, "path": self._path(), "method": self.command})
         sys.stderr.write(f"sidecar auth {error_code} {self.command} {self._path()}\n")
 
-    def _read_json(self) -> JsonObject:
+    def _read_json(self, *, max_bytes: int = MAX_REQUEST_BYTES) -> JsonObject:
         content_length = self.headers.get("Content-Length")
         if content_length is None:
             raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_JSON", "missing request body")
@@ -259,7 +269,7 @@ class SidecarRequestHandler(BaseHTTPRequestHandler):
             byte_count = int(content_length)
         except ValueError as exc:
             raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_JSON", "invalid content length") from exc
-        if byte_count > MAX_REQUEST_BYTES:
+        if byte_count > max_bytes:
             raise SidecarError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "INVALID_REQUEST", "request body too large")
         raw = self.rfile.read(byte_count)
         try:
@@ -740,6 +750,103 @@ def quality_allows_auto_insert(quality_flags: JsonObject) -> bool:
         and float(quality_flags.get("landmark_confidence", 0.0)) >= 0.80
         and quality_flags.get("rejection_reasons") == []
     )
+
+
+def ingest_roi_clip(payload: JsonObject) -> JsonObject:
+    allowed_top_level = {
+        "schema_version",
+        "request_id",
+        "session_id",
+        "source",
+        "clip",
+        "quality_flags",
+        "requested_at_ms",
+    }
+    require_exact_keys(payload, allowed_top_level, "RoiClipIngestRequest")
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "unsupported schema_version")
+    request_id = string_field(payload, "request_id", max_length=128)
+    session_id = string_field(payload, "session_id", max_length=128)
+    requested_at_ms = payload.get("requested_at_ms")
+    if not isinstance(requested_at_ms, int) or requested_at_ms < 0:
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "requested_at_ms must be a non-negative integer")
+    validate_source(payload.get("source"))
+    validate_quality_flags(payload.get("quality_flags"))
+    clip = validate_roi_clip(payload.get("clip"))
+    clip_bytes = decode_roi_clip_base64(clip["data_base64"])
+    clip_path = write_roi_clip_bytes(session_id=session_id, request_id=request_id, mime_type=clip["mime_type"], data=clip_bytes)
+    local_ref = f"local://path/{clip_path.as_posix()}"
+    roi_request: JsonObject = {
+        "schema_version": SCHEMA_VERSION,
+        "request_id": request_id,
+        "session_id": session_id,
+        "source": payload["source"],
+        "roi": {
+            "local_ref": local_ref,
+            "format": "rgb_u8",
+            "width": clip["width"],
+            "height": clip["height"],
+            "fps": clip["fps"],
+            "frame_count": clip["frame_count"],
+            "duration_ms": clip["duration_ms"],
+        },
+        "quality_flags": payload["quality_flags"],
+        "requested_at_ms": requested_at_ms,
+    }
+    validate_roi_request(roi_request)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "roi_request": roi_request,
+    }
+
+
+def validate_roi_clip(value: object) -> JsonObject:
+    if not isinstance(value, dict):
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "clip must be an object")
+    clip = dict(value)
+    allowed = {"mime_type", "data_base64", "width", "height", "fps", "frame_count", "duration_ms"}
+    require_exact_keys(clip, allowed, "clip")
+    mime_type = clip.get("mime_type")
+    if mime_type not in ALLOWED_ROI_CLIP_MIME_TYPES:
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "clip.mime_type is invalid")
+    data_base64 = clip.get("data_base64")
+    if not isinstance(data_base64, str) or not data_base64:
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "clip.data_base64 must be a non-empty string")
+    require_int_range(clip, "width", minimum=1, maximum=512)
+    require_int_range(clip, "height", minimum=1, maximum=512)
+    require_number_range(clip, "fps", exclusive_minimum=0.0, maximum=120.0)
+    require_int_range(clip, "frame_count", minimum=1, maximum=1200)
+    require_int_range(clip, "duration_ms", minimum=1, maximum=30000)
+    return clip
+
+
+def decode_roi_clip_base64(data_base64: str) -> bytes:
+    try:
+        data = base64.b64decode(data_base64.encode("ascii"), validate=True)
+    except (UnicodeEncodeError, ValueError) as exc:
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "clip.data_base64 is invalid") from exc
+    if not data:
+        raise SidecarError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "clip must not be empty")
+    if len(data) > MAX_ROI_CLIP_BYTES:
+        raise SidecarError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "INVALID_REQUEST", "ROI clip is too large")
+    return data
+
+
+def write_roi_clip_bytes(*, session_id: str, request_id: str, mime_type: str, data: bytes) -> Path:
+    suffix = ".mp4" if mime_type == "video/mp4" else ".webm"
+    safe_session = safe_path_token(session_id)
+    safe_request = safe_path_token(request_id)
+    digest = hashlib.sha256(data).hexdigest()[:12]
+    clip_dir = Path(tempfile.gettempdir()) / "freelip" / "roi-clips" / safe_session
+    clip_dir.mkdir(parents=True, exist_ok=True)
+    clip_path = clip_dir / f"{safe_request}-{digest}{suffix}"
+    clip_path.write_bytes(data)
+    return clip_path.resolve()
+
+
+def safe_path_token(value: str) -> str:
+    safe = "".join(char if char.isalnum() or char in {"-", "_"} else "-" for char in value)
+    return safe[:80] or "roi"
 
 
 def validate_roi_request(payload: JsonObject) -> None:

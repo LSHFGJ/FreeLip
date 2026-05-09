@@ -131,6 +131,40 @@ def roi_request() -> dict[str, Any]:
     return payload
 
 
+def roi_clip_ingest_request() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "request_id": "roi-req-live-0001",
+        "session_id": "session-live-0001",
+        "source": {
+            "kind": "camera",
+            "started_at_ms": 1_777_339_200_000,
+        },
+        "clip": {
+            "mime_type": "video/webm",
+            "data_base64": base64.b64encode(b"tiny-webm-placeholder").decode("ascii"),
+            "width": 96,
+            "height": 96,
+            "fps": 25,
+            "frame_count": 75,
+            "duration_ms": 3000,
+        },
+        "quality_flags": {
+            "schema_version": "1.0.0",
+            "face_found": False,
+            "mouth_landmarks_found": False,
+            "crop_bounds_valid": False,
+            "blur_ok": True,
+            "brightness_ok": True,
+            "pose_ok": True,
+            "occlusion_ok": True,
+            "landmark_confidence": 0.0,
+            "rejection_reasons": ["face_not_found", "mouth_landmarks_missing", "crop_bounds_invalid"],
+        },
+        "requested_at_ms": 1_777_339_203_000,
+    }
+
+
 def test_health_is_public_but_status_requires_token() -> None:
     backend = CountingBackend()
     server = sidecar.create_server("127.0.0.1", 0, token=TOKEN, backend=backend)
@@ -219,6 +253,43 @@ def test_decode_requires_token_before_backend_inference() -> None:
     assert isinstance(ok_body, dict)
     validate_candidate_response(ok_body)
     assert ok_body["candidates"][0]["source"] == "cnvsrc2025"
+
+
+def test_roi_clip_ingest_requires_token_and_returns_adapter_path_ref() -> None:
+    backend = CountingBackend()
+    server = sidecar.create_server("127.0.0.1", 0, token=TOKEN, backend=backend)
+    base_url, thread = serve(server)
+    payload = roi_clip_ingest_request()
+    try:
+        missing_status, missing_body = request_json("POST", f"{base_url}/roi/clips", payload, token=None)
+        wrong_status, wrong_body = request_json("POST", f"{base_url}/roi/clips", payload, token="wrong")
+        ok_status, ok_body = request_json("POST", f"{base_url}/roi/clips", payload)
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
+        server.server_close()
+
+    assert missing_status == 401
+    assert isinstance(missing_body, dict)
+    assert missing_body["error_code"] == "AUTH_MISSING"
+    assert wrong_status == 403
+    assert isinstance(wrong_body, dict)
+    assert wrong_body["error_code"] == "AUTH_REJECTED"
+    assert ok_status == 200
+    assert isinstance(ok_body, dict)
+    roi_payload = ok_body["roi_request"]
+    schema = load_json(SCHEMAS_DIR / "roi_request.schema.json")
+    errors = sorted(Draft202012Validator(schema).iter_errors(roi_payload), key=str)
+    assert errors == []
+    assert roi_payload["request_id"] == payload["request_id"]
+    assert roi_payload["source"]["kind"] == "camera"
+    assert roi_payload["roi"]["local_ref"].startswith("local://path/")
+    assert "data_base64" not in json.dumps(roi_payload)
+    clip_path = Path(roi_payload["roi"]["local_ref"].removeprefix("local://path/"))
+    assert clip_path.is_file()
+    assert clip_path.read_bytes() == b"tiny-webm-placeholder"
+    assert roi_payload["quality_flags"]["rejection_reasons"] == payload["quality_flags"]["rejection_reasons"]
+    assert backend.decode_calls == 0
 
 
 def test_session_and_stream_endpoints_are_protected() -> None:
