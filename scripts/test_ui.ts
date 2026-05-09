@@ -2,6 +2,7 @@ import { createCameraProbeController, shouldAutoStartCamera } from "../src/camer
 import {
   createCameraRecognitionStatus,
   mapDecodeCandidatesToOverlay,
+  runLiveRoiDecodeWhenReady,
   runDecodeWhenReady
 } from "../src/cameraRecognition.ts";
 import { shouldShowDevControls } from "../src/devMode.ts";
@@ -9,9 +10,15 @@ import type { AppEvent } from "../src/hotkeyState.ts";
 import { reduce } from "../src/hotkeyState.ts";
 import { escapeModelStatusText, formatModelStatus } from "../src/modelStatus.ts";
 import { renderCandidates } from "../src/render.ts";
+import {
+  canCaptureLiveRoi,
+  createDefaultRoiQualityFlags,
+  ingestRoiClipWithSidecar,
+  prepareCameraRoiRequest
+} from "../src/sidecarRoi.ts";
 import type { CandidateResponse, RoiRequest } from "../src/sidecarDecode.ts";
 import { decodeRoiWithSidecar } from "../src/sidecarDecode.ts";
-import { SIDECAR_DECODE_URL } from "../src/sidecarConfig.ts";
+import { SIDECAR_DECODE_URL, SIDECAR_ROI_CLIP_URL } from "../src/sidecarConfig.ts";
 
 function strictEqual(actual: unknown, expected: unknown) {
   if (!Object.is(actual, expected)) {
@@ -321,6 +328,7 @@ function runCameraAutoStartGateTests() {
 
 function runSidecarDecodeConfigTests() {
   strictEqual(SIDECAR_DECODE_URL, "http://127.0.0.1:18765/decode");
+  strictEqual(SIDECAR_ROI_CLIP_URL, "http://127.0.0.1:18765/roi/clips");
 }
 
 function createTestRoiRequest(): RoiRequest {
@@ -412,6 +420,84 @@ async function runSidecarDecodeClientTests() {
   strictEqual(result.realDecode, true);
 }
 
+async function runSidecarRoiIngestClientTests() {
+  const requests: RequestInit[] = [];
+  const urls: string[] = [];
+  const roiRequest = createTestRoiRequest();
+  roiRequest.roi.local_ref = "local://path/C:/Users/test/AppData/Local/FreeLip/roi/session/roi.webm";
+
+  const result = await ingestRoiClipWithSidecar({
+    schema_version: "1.0.0",
+    request_id: roiRequest.request_id,
+    session_id: roiRequest.session_id,
+    source: roiRequest.source,
+    clip: {
+      mime_type: "video/webm",
+      data_base64: "dGlueS13ZWJt",
+      width: 96,
+      height: 96,
+      fps: 25,
+      frame_count: 75,
+      duration_ms: 3000
+    },
+    quality_flags: roiRequest.quality_flags,
+    requested_at_ms: roiRequest.requested_at_ms
+  }, {
+    url: "http://127.0.0.1:18765/roi/clips",
+    token: "test-token",
+    fetchJson: async (url, init) => {
+      urls.push(url);
+      requests.push(init);
+      return { schema_version: "1.0.0", roi_request: roiRequest };
+    }
+  });
+
+  strictEqual(urls[0], "http://127.0.0.1:18765/roi/clips");
+  strictEqual(requests[0]?.method, "POST");
+  const headers = requests[0]?.headers as Record<string, string>;
+  strictEqual(headers.Authorization, "Bearer test-token");
+  strictEqual(headers["X-FreeLip-Token"], "test-token");
+  ok(String(requests[0]?.body).includes("dGlueS13ZWJt"), "ROI ingest body should include clip payload");
+  strictEqual(result.roi.local_ref.startsWith("local://path/"), true);
+}
+
+function runRoiProducerQualityTests() {
+  const flags = createDefaultRoiQualityFlags();
+  strictEqual(flags.face_found, false);
+  strictEqual(flags.mouth_landmarks_found, false);
+  strictEqual(flags.crop_bounds_valid, false);
+  deepStrictEqual(flags.rejection_reasons, ["face_not_found", "mouth_landmarks_missing", "crop_bounds_invalid"]);
+  strictEqual(canCaptureLiveRoi({ hasCameraStream: true, hasVideoElement: true, mediaRecorderAvailable: true, canvasCaptureAvailable: true }), true);
+  strictEqual(canCaptureLiveRoi({ hasCameraStream: true, hasVideoElement: true, mediaRecorderAvailable: false, canvasCaptureAvailable: true }), false);
+  strictEqual(canCaptureLiveRoi({ hasCameraStream: true, hasVideoElement: true, mediaRecorderAvailable: true, canvasCaptureAvailable: false }), false);
+}
+
+async function runPrepareCameraRoiRequestTests() {
+  const roiRequest = createTestRoiRequest();
+  roiRequest.roi.local_ref = "local://path/C:/Users/test/AppData/Local/FreeLip/roi/session/roi.webm";
+  const result = await prepareCameraRoiRequest({
+    sessionId: "session-0001",
+    sourceStartedAtMs: 1_777_339_200_000,
+    requestedAtMs: 1_777_339_203_000,
+    recordClip: async () => ({
+      mime_type: "video/webm",
+      data_base64: "dGlueS13ZWJt",
+      width: 96,
+      height: 96,
+      fps: 25,
+      frame_count: 75,
+      duration_ms: 3000
+    }),
+    ingestClip: async (request) => {
+      strictEqual(request.source.kind, "camera");
+      strictEqual(request.quality_flags.mouth_landmarks_found, false);
+      return roiRequest;
+    }
+  });
+
+  strictEqual(result.roi.local_ref, roiRequest.roi.local_ref);
+}
+
 function runCameraRecognitionStatusTests() {
   strictEqual(
     createCameraRecognitionStatus({ cameraReady: true, modelReady: true, roiReady: false }).code,
@@ -488,6 +574,48 @@ async function runRecognitionSkipsDecodeWithoutRoiTests() {
   strictEqual(events.length, 0);
 }
 
+async function runLiveRoiDecodePipelineTests() {
+  const events: AppEvent[] = [];
+  let prepareCalls = 0;
+  let decodeCalls = 0;
+  const decoded = await runLiveRoiDecodeWhenReady({
+    cameraReady: true,
+    modelReady: true,
+    prepareRoiRequest: async () => {
+      prepareCalls += 1;
+      return createTestRoiRequest();
+    },
+    decode: async () => {
+      decodeCalls += 1;
+      return {
+        response: createTestCandidateResponse(),
+        candidates: createTestCandidateResponse().candidates,
+        realDecode: true
+      };
+    },
+    dispatch: (event) => events.push(event)
+  });
+
+  strictEqual(prepareCalls, 1);
+  strictEqual(decodeCalls, 1);
+  strictEqual(decoded, true);
+  strictEqual(events[0]?.type, "ProcessingComplete");
+
+  const skipped = await runLiveRoiDecodeWhenReady({
+    cameraReady: false,
+    modelReady: true,
+    prepareRoiRequest: async () => {
+      throw new Error("prepare should not run without camera");
+    },
+    decode: async () => {
+      throw new Error("decode should not run without camera");
+    },
+    dispatch: (event) => events.push(event)
+  });
+
+  strictEqual(skipped, false);
+}
+
 async function runCameraUnavailableTests() {
   const button = new MockButton();
   const status = new MockStatus();
@@ -519,11 +647,15 @@ async function runAllTests() {
   runCameraAutoStartGateTests();
   runSidecarDecodeConfigTests();
   await runSidecarDecodeClientTests();
+  await runSidecarRoiIngestClientTests();
+  runRoiProducerQualityTests();
+  await runPrepareCameraRoiRequestTests();
   runCameraRecognitionStatusTests();
   runCandidateMappingTests();
   await runRecognitionDecodeDispatchTests();
   await runRecognitionSkipsFixtureDecodeTests();
   await runRecognitionSkipsDecodeWithoutRoiTests();
+  await runLiveRoiDecodePipelineTests();
   await runCameraProbeTests();
   await runCameraProbeStartMethodTests();
   await runCameraUnavailableTests();

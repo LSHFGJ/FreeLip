@@ -1,6 +1,6 @@
 import "./styles.css";
 import { createCameraProbeController, shouldAutoStartCamera } from "./cameraProbe.ts";
-import { createCameraRecognitionStatus } from "./cameraRecognition.ts";
+import { createCameraRecognitionStatus, runLiveRoiDecodeWhenReady } from "./cameraRecognition.ts";
 import { readDevControlsEnabled } from "./devMode.ts";
 import type { AppEvent, AppState, OverlayCandidate } from "./hotkeyState.ts";
 import { reduce } from "./hotkeyState.ts";
@@ -10,12 +10,15 @@ import type {
 } from "./modelStatus.ts";
 import { escapeModelStatusText, formatModelStatus } from "./modelStatus.ts";
 import { renderCandidates } from "./render.ts";
-import { DEBUG_SIDECAR_TOKEN, SIDECAR_STATUS_URL } from "./sidecarConfig.ts";
+import { DEBUG_SIDECAR_TOKEN, SIDECAR_DECODE_URL, SIDECAR_ROI_CLIP_URL, SIDECAR_STATUS_URL } from "./sidecarConfig.ts";
+import { decodeRoiWithSidecar } from "./sidecarDecode.ts";
+import { canCaptureLiveRoi, hasCanvasCaptureSupport, ingestRoiClipWithSidecar, prepareCameraRoiRequest, recordVideoElementClip } from "./sidecarRoi.ts";
 
 let state: AppState = { type: "Idle", chord: "Ctrl+Alt+Space" };
 let modelStatus: FormattedModelStatus = formatModelStatus(null);
 let cameraAutoStarted = false;
 let activeCameraStream: MediaStream | null = null;
+let activeCameraStartedAtMs = 0;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 const devControlsEnabled = readDevControlsEnabled();
@@ -25,7 +28,12 @@ function render() {
 	const recognitionStatus = createCameraRecognitionStatus({
 		cameraReady: activeCameraStream !== null,
 		modelReady: modelStatus.realModelReady,
-		roiReady: false,
+		roiReady: canCaptureLiveRoi({
+			hasCameraStream: activeCameraStream !== null,
+			hasVideoElement: true,
+			mediaRecorderAvailable: typeof MediaRecorder !== "undefined",
+			canvasCaptureAvailable: hasCanvasCaptureSupport(),
+		}),
 	});
 
 	let content = `
@@ -174,6 +182,7 @@ function attachEvents() {
 			getMediaDevices: () => navigator.mediaDevices,
 			onStreamReady: (stream) => {
 				activeCameraStream = stream;
+				activeCameraStartedAtMs = Date.now();
 				render();
 			},
 		});
@@ -245,6 +254,57 @@ function attachEvents() {
 					autoInsertThresholdMet: false,
 				});
 			});
+	}
+}
+
+async function runLiveCameraDecode() {
+	const video = document.querySelector<HTMLVideoElement>("#camera-probe-preview");
+	const cameraReady = activeCameraStream !== null && video !== null;
+	if (!cameraReady || !video) {
+		showToast("Camera preview is not ready for live ROI capture.");
+		dispatch({ type: "EscapePressed" });
+		return;
+	}
+
+	if (!modelStatus.realModelReady) {
+		showToast("CNVSRC runtime is not ready for live /decode yet.");
+		dispatch({ type: "EscapePressed" });
+		return;
+	}
+
+	try {
+		const decoded = await runLiveRoiDecodeWhenReady({
+			cameraReady,
+			modelReady: modelStatus.realModelReady,
+			prepareRoiRequest: () =>
+				prepareCameraRoiRequest({
+					sessionId: `session-${activeCameraStartedAtMs || Date.now()}`,
+					sourceStartedAtMs: activeCameraStartedAtMs || Date.now(),
+					recordClip: () => recordVideoElementClip({ video }),
+					ingestClip: (request) =>
+					ingestRoiClipWithSidecar(request, {
+						url: SIDECAR_ROI_CLIP_URL,
+						token: DEBUG_SIDECAR_TOKEN,
+					}),
+				}),
+			decode: (request) =>
+				decodeRoiWithSidecar(request, {
+					url: SIDECAR_DECODE_URL,
+					token: DEBUG_SIDECAR_TOKEN,
+				}),
+			dispatch,
+		});
+		if (!decoded) {
+			showToast("Live ROI decode did not return real candidates.");
+			dispatch({ type: "EscapePressed" });
+		}
+	} catch (error) {
+		showToast(
+			error instanceof Error
+				? `Live ROI decode failed: ${error.message}`
+				: "Live ROI decode failed.",
+		);
+		dispatch({ type: "EscapePressed" });
 	}
 }
 
@@ -320,6 +380,7 @@ document.addEventListener("keydown", (e) => {
 			dispatch({ type: "HotkeyPressed" });
 		} else if (state.type === "Recording") {
 			dispatch({ type: "RecordingStopped" });
+			void runLiveCameraDecode();
 		}
 		return;
 	}

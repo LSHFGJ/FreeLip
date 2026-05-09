@@ -16,3 +16,4 @@ export const DEBUG_SIDECAR_TOKEN =
 	sidecarConfig.token ?? "debug-local-token-change-before-sharing";
 export const SIDECAR_STATUS_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}/model/status`;
 export const SIDECAR_DECODE_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}/decode`;
+export const SIDECAR_ROI_CLIP_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}/roi/clips`;

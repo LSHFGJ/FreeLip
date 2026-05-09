@@ -15,6 +15,14 @@ export type RunDecodeWhenReadyOptions = {
   dispatch: (event: AppEvent) => void;
 };
 
+export type RunLiveRoiDecodeWhenReadyOptions = {
+  cameraReady: boolean;
+  modelReady: boolean;
+  prepareRoiRequest: () => Promise<RoiRequest>;
+  decode: (request: RoiRequest) => Promise<DecodeResult>;
+  dispatch: (event: AppEvent) => void;
+};
+
 export function createCameraRecognitionStatus(input: {
   cameraReady: boolean;
   modelReady: boolean;
@@ -40,14 +48,14 @@ export function createCameraRecognitionStatus(input: {
     return {
       code: "WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED",
       realRecognition: false,
-      message: "Camera preview is active, but live ROI capture is not wired to /decode yet."
+      message: "Camera preview is active, but MediaRecorder/canvas ROI capture is unavailable in this WebView."
     };
   }
 
   return {
     code: "READY_TO_DECODE",
     realRecognition: true,
-    message: "Camera, model, and ROI transport are ready for real /decode recognition."
+    message: "Camera clip capture, model readiness, and local ROI transport are ready for real /decode. Mouth-landmark crop quality remains conservative."
   };
 }
 
@@ -64,14 +72,14 @@ export async function runDecodeWhenReady({
   roiRequest,
   decode,
   dispatch
-}: RunDecodeWhenReadyOptions): Promise<void> {
+}: RunDecodeWhenReadyOptions): Promise<boolean> {
   if (!cameraReady || !modelReady || !roiRequest) {
-    return;
+    return false;
   }
 
   const result = await decode(roiRequest);
   if (!result.realDecode) {
-    return;
+    return false;
   }
 
   dispatch({
@@ -79,5 +87,27 @@ export async function runDecodeWhenReady({
     candidates: mapDecodeCandidatesToOverlay(result.candidates),
     lowQuality: result.response.quality_flags.rejection_reasons.length > 0,
     autoInsertThresholdMet: result.candidates[0]?.is_auto_insert_eligible === true
+  });
+  return true;
+}
+
+export async function runLiveRoiDecodeWhenReady({
+  cameraReady,
+  modelReady,
+  prepareRoiRequest,
+  decode,
+  dispatch
+}: RunLiveRoiDecodeWhenReadyOptions): Promise<boolean> {
+  if (!cameraReady || !modelReady) {
+    return false;
+  }
+
+  const roiRequest = await prepareRoiRequest();
+  return runDecodeWhenReady({
+    cameraReady,
+    modelReady,
+    roiRequest,
+    decode,
+    dispatch
   });
 }
