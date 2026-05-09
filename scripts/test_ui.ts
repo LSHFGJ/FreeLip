@@ -1,8 +1,17 @@
-import { createCameraProbeController } from "../src/cameraProbe.ts";
+import { createCameraProbeController, shouldAutoStartCamera } from "../src/cameraProbe.ts";
+import {
+  createCameraRecognitionStatus,
+  mapDecodeCandidatesToOverlay,
+  runDecodeWhenReady
+} from "../src/cameraRecognition.ts";
 import { shouldShowDevControls } from "../src/devMode.ts";
+import type { AppEvent } from "../src/hotkeyState.ts";
 import { reduce } from "../src/hotkeyState.ts";
 import { escapeModelStatusText, formatModelStatus } from "../src/modelStatus.ts";
 import { renderCandidates } from "../src/render.ts";
+import type { CandidateResponse, RoiRequest } from "../src/sidecarDecode.ts";
+import { decodeRoiWithSidecar } from "../src/sidecarDecode.ts";
+import { SIDECAR_DECODE_URL } from "../src/sidecarConfig.ts";
 
 function strictEqual(actual: unknown, expected: unknown) {
   if (!Object.is(actual, expected)) {
@@ -275,6 +284,210 @@ async function runCameraProbeTests() {
   strictEqual(status.className, "camera-status camera-status-ready");
 }
 
+async function runCameraProbeStartMethodTests() {
+  const calls: MediaStreamConstraints[] = [];
+  const readyStreams: MediaStream[] = [];
+  const stream = { id: "camera-stream" } as MediaStream;
+  const button = new MockButton();
+  const status = new MockStatus();
+  const video = new MockVideo();
+
+  const controller = createCameraProbeController({
+    button,
+    status,
+    video,
+    getMediaDevices: () => ({
+      getUserMedia: async (constraints: MediaStreamConstraints) => {
+        calls.push(constraints);
+        return stream;
+      }
+    }),
+    onStreamReady: (readyStream) => readyStreams.push(readyStream)
+  });
+
+  await controller.start();
+
+  deepStrictEqual(calls, [{ video: true, audio: false }]);
+  strictEqual(video.srcObject, stream);
+  strictEqual(status.className, "camera-status camera-status-ready");
+  deepStrictEqual(readyStreams, [stream]);
+}
+
+function runCameraAutoStartGateTests() {
+  strictEqual(shouldAutoStartCamera(false, true), true);
+  strictEqual(shouldAutoStartCamera(true, true), false);
+  strictEqual(shouldAutoStartCamera(false, false), false);
+}
+
+function runSidecarDecodeConfigTests() {
+  strictEqual(SIDECAR_DECODE_URL, "http://127.0.0.1:18765/decode");
+}
+
+function createTestRoiRequest(): RoiRequest {
+  return {
+    schema_version: "1.0.0",
+    request_id: "roi-req-0001",
+    session_id: "session-0001",
+    source: {
+      kind: "camera",
+      started_at_ms: 1_777_339_200_000
+    },
+    roi: {
+      local_ref: "local://roi/session-0001/normalized.json",
+      format: "grayscale_u8",
+      width: 96,
+      height: 96,
+      fps: 25,
+      frame_count: 75,
+      duration_ms: 3000
+    },
+    quality_flags: {
+      schema_version: "1.0.0",
+      face_found: true,
+      mouth_landmarks_found: true,
+      crop_bounds_valid: true,
+      blur_ok: true,
+      brightness_ok: true,
+      pose_ok: true,
+      occlusion_ok: true,
+      landmark_confidence: 0.91,
+      rejection_reasons: []
+    },
+    requested_at_ms: 1_777_339_203_000
+  };
+}
+
+function createTestCandidateResponse(): CandidateResponse {
+  const request = createTestRoiRequest();
+  return {
+    schema_version: "1.0.0",
+    request_id: request.request_id,
+    session_id: request.session_id,
+    model: {
+      model_id: "cnvsrc2025",
+      runtime_id: "cnvsrc2025-official-cpu",
+      device: "cpu"
+    },
+    candidates: [
+      {
+        schema_version: "1.0.0",
+        rank: 1,
+        text: "打开会议记录",
+        score: 0.87,
+        source: "cnvsrc2025",
+        is_auto_insert_eligible: true
+      }
+    ],
+    quality_flags: request.quality_flags,
+    timing_ms: {
+      roi_received_to_first_candidate: 12,
+      roi_received_to_final: 28
+    },
+    created_at_ms: 1_777_339_204_050
+  };
+}
+
+async function runSidecarDecodeClientTests() {
+  const requests: RequestInit[] = [];
+  const urls: string[] = [];
+  const payload = createTestRoiRequest();
+  const response = createTestCandidateResponse();
+
+  const result = await decodeRoiWithSidecar(payload, {
+    url: "http://127.0.0.1:18765/decode",
+    token: "test-token",
+    fetchJson: async (url, init) => {
+      urls.push(url);
+      requests.push(init);
+      return response;
+    }
+  });
+
+  strictEqual(urls[0], "http://127.0.0.1:18765/decode");
+  strictEqual(requests[0]?.method, "POST");
+  const headers = requests[0]?.headers as Record<string, string>;
+  strictEqual(headers.Authorization, "Bearer test-token");
+  strictEqual(headers["X-FreeLip-Token"], "test-token");
+  strictEqual(result.candidates[0]?.text, response.candidates[0]?.text);
+  strictEqual(result.realDecode, true);
+}
+
+function runCameraRecognitionStatusTests() {
+  strictEqual(
+    createCameraRecognitionStatus({ cameraReady: true, modelReady: true, roiReady: false }).code,
+    "WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED"
+  );
+  strictEqual(
+    createCameraRecognitionStatus({ cameraReady: true, modelReady: true, roiReady: false }).realRecognition,
+    false
+  );
+}
+
+function runCandidateMappingTests() {
+  const mapped = mapDecodeCandidatesToOverlay(createTestCandidateResponse().candidates);
+  strictEqual(mapped[0]?.text, "打开会议记录");
+  strictEqual(mapped[0]?.source, "cnvsrc2025");
+}
+
+async function runRecognitionDecodeDispatchTests() {
+  const events: AppEvent[] = [];
+  await runDecodeWhenReady({
+    cameraReady: true,
+    modelReady: true,
+    roiRequest: createTestRoiRequest(),
+    decode: async () => ({
+      response: createTestCandidateResponse(),
+      candidates: createTestCandidateResponse().candidates,
+      realDecode: true
+    }),
+    dispatch: (event) => events.push(event)
+  });
+
+  strictEqual(events[0]?.type, "ProcessingComplete");
+}
+
+async function runRecognitionSkipsFixtureDecodeTests() {
+  const events: AppEvent[] = [];
+  const fixtureResponse = createTestCandidateResponse();
+  fixtureResponse.model.runtime_id = "cnvsrc2025-fixture-cpu";
+
+  await runDecodeWhenReady({
+    cameraReady: true,
+    modelReady: true,
+    roiRequest: createTestRoiRequest(),
+    decode: async () => ({
+      response: fixtureResponse,
+      candidates: fixtureResponse.candidates,
+      realDecode: false
+    }),
+    dispatch: (event) => events.push(event)
+  });
+
+  strictEqual(events.length, 0);
+}
+
+async function runRecognitionSkipsDecodeWithoutRoiTests() {
+  let decodeCalls = 0;
+  const events: AppEvent[] = [];
+  await runDecodeWhenReady({
+    cameraReady: true,
+    modelReady: true,
+    roiRequest: null,
+    decode: async () => {
+      decodeCalls += 1;
+      return {
+        response: createTestCandidateResponse(),
+        candidates: createTestCandidateResponse().candidates,
+        realDecode: true
+      };
+    },
+    dispatch: (event) => events.push(event)
+  });
+
+  strictEqual(decodeCalls, 0);
+  strictEqual(events.length, 0);
+}
+
 async function runCameraUnavailableTests() {
   const button = new MockButton();
   const status = new MockStatus();
@@ -303,7 +516,16 @@ async function runAllTests() {
   runTests();
   runModelStatusTests();
   runDevModeTests();
+  runCameraAutoStartGateTests();
+  runSidecarDecodeConfigTests();
+  await runSidecarDecodeClientTests();
+  runCameraRecognitionStatusTests();
+  runCandidateMappingTests();
+  await runRecognitionDecodeDispatchTests();
+  await runRecognitionSkipsFixtureDecodeTests();
+  await runRecognitionSkipsDecodeWithoutRoiTests();
   await runCameraProbeTests();
+  await runCameraProbeStartMethodTests();
   await runCameraUnavailableTests();
 }
 

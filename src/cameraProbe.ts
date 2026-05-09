@@ -17,11 +17,16 @@ type CameraProbeVideo = {
   playsInline: boolean;
 };
 
+export type CameraProbeController = {
+  start: () => Promise<void>;
+};
+
 export type CameraProbeControllerOptions = {
   button: CameraProbeButton;
   status: CameraProbeStatus;
   video: CameraProbeVideo;
   getMediaDevices: () => CameraMediaDevices | null | undefined;
+  onStreamReady?: (stream: MediaStream) => void;
 };
 
 const cameraConstraints: MediaStreamConstraints = { video: true, audio: false };
@@ -31,13 +36,18 @@ function setStatus(status: CameraProbeStatus, state: "idle" | "pending" | "ready
   status.className = `camera-status camera-status-${state}`;
 }
 
+export function shouldAutoStartCamera(hasAutoStarted: boolean, canStart: boolean): boolean {
+  return canStart && !hasAutoStarted;
+}
+
 export function createCameraProbeController({
   button,
   status,
   video,
-  getMediaDevices
-}: CameraProbeControllerOptions) {
-  button.addEventListener("click", async () => {
+  getMediaDevices,
+  onStreamReady
+}: CameraProbeControllerOptions): CameraProbeController {
+  async function start() {
     button.disabled = true;
     setStatus(status, "pending", "Requesting camera permission for a local preview...");
 
@@ -58,6 +68,7 @@ export function createCameraProbeController({
       video.hidden = false;
       video.muted = true;
       video.playsInline = true;
+      onStreamReady?.(stream);
       setStatus(
         status,
         "ready",
@@ -69,5 +80,8 @@ export function createCameraProbeController({
     } finally {
       button.disabled = false;
     }
-  });
+  }
+
+  button.addEventListener("click", start);
+  return { start };
 }

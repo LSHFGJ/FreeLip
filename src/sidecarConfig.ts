@@ -15,3 +15,4 @@ export const SIDECAR_PORT = sidecarConfig.port ?? 18765;
 export const DEBUG_SIDECAR_TOKEN =
 	sidecarConfig.token ?? "debug-local-token-change-before-sharing";
 export const SIDECAR_STATUS_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}/model/status`;
+export const SIDECAR_DECODE_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}/decode`;

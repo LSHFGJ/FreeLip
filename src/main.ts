@@ -1,5 +1,6 @@
 import "./styles.css";
-import { createCameraProbeController } from "./cameraProbe.ts";
+import { createCameraProbeController, shouldAutoStartCamera } from "./cameraProbe.ts";
+import { createCameraRecognitionStatus } from "./cameraRecognition.ts";
 import { readDevControlsEnabled } from "./devMode.ts";
 import type { AppEvent, AppState, OverlayCandidate } from "./hotkeyState.ts";
 import { reduce } from "./hotkeyState.ts";
@@ -13,12 +14,19 @@ import { DEBUG_SIDECAR_TOKEN, SIDECAR_STATUS_URL } from "./sidecarConfig.ts";
 
 let state: AppState = { type: "Idle", chord: "Ctrl+Alt+Space" };
 let modelStatus: FormattedModelStatus = formatModelStatus(null);
+let cameraAutoStarted = false;
+let activeCameraStream: MediaStream | null = null;
 
 const app = document.querySelector<HTMLDivElement>("#app");
 const devControlsEnabled = readDevControlsEnabled();
 
 function render() {
 	if (!app) return;
+	const recognitionStatus = createCameraRecognitionStatus({
+		cameraReady: activeCameraStream !== null,
+		modelReady: modelStatus.realModelReady,
+		roiReady: false,
+	});
 
 	let content = `
     <section class="shell">
@@ -82,15 +90,19 @@ function render() {
 	content += `
       <section class="camera-probe" aria-labelledby="camera-probe-title">
         <p class="eyebrow">Windows camera check</p>
-        <h2 id="camera-probe-title">Camera Probe</h2>
+        <h2 id="camera-probe-title">Camera Recognition</h2>
         <p class="instructions">
-          Request camera access and show a local preview in this WebView. This does not run ROI cropping, VSR, or model inference.
+          FreeLip starts the local camera automatically after launch. Windows/WebView2 may still ask for camera permission.
         </p>
-        <button id="camera-probe-request" type="button">Request camera preview</button>
+        <button id="camera-probe-request" type="button" hidden aria-hidden="true" tabindex="-1">Retry camera preview</button>
         <p id="camera-probe-status" class="camera-status camera-status-idle">
-          Camera not requested yet. Run this from the Windows debug app to verify the real permission prompt.
+          Starting camera preview... Grant camera permission if Windows asks.
         </p>
         <video id="camera-probe-preview" class="camera-preview" autoplay muted playsinline hidden></video>
+      </section>
+      <section id="camera-recognition-status" class="model-status" aria-live="polite">
+        <p class="eyebrow">Camera recognition</p>
+        <p><strong>${recognitionStatus.code}</strong>: ${escapeModelStatusText(recognitionStatus.message)}</p>
       </section>
 
       ${
@@ -145,12 +157,31 @@ function attachEvents() {
 		"#camera-probe-preview",
 	);
 	if (cameraButton && cameraStatus && cameraVideo) {
-		createCameraProbeController({
+		if (activeCameraStream) {
+			cameraVideo.srcObject = activeCameraStream;
+			cameraVideo.hidden = false;
+			cameraVideo.muted = true;
+			cameraVideo.playsInline = true;
+			cameraStatus.textContent =
+				"Camera preview is active. Real recognition still requires live ROI frames to be sent to /decode.";
+			cameraStatus.className = "camera-status camera-status-ready";
+		}
+
+		const controller = createCameraProbeController({
 			button: cameraButton,
 			status: cameraStatus,
 			video: cameraVideo,
 			getMediaDevices: () => navigator.mediaDevices,
+			onStreamReady: (stream) => {
+				activeCameraStream = stream;
+				render();
+			},
 		});
+
+		if (shouldAutoStartCamera(cameraAutoStarted, !activeCameraStream)) {
+			cameraAutoStarted = true;
+			void controller.start();
+		}
 	}
 
 	const remapBtn = document.getElementById("btn-remap");
