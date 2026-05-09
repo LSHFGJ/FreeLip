@@ -11,7 +11,7 @@ FreeLip is a local Windows desktop VSR MVP. The app shell is Tauri/Rust, the sid
 - Target hardware: Windows desktop or laptop with a camera, GPU-capable VSR runtime where available, and local storage for model artifacts.
 - Linux/WSL can run contracts, fixture replay, docs checks, and most Python/Rust tests.
 - Real camera capture requires Windows: `WINDOWS_CAMERA_REQUIRED`.
-- The debug app auto-attempts WebView camera preview after launch, but live ROI capture remains incomplete: `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED`.
+- The debug app auto-attempts WebView camera preview after launch and can materialize a short local camera clip for `/decode`; landmark-based mouth ROI cropping remains a quality follow-up.
 - Real Notepad/browser/editor UI automation cannot be proven on Linux/WSL: `WINDOWS_UI_AUTOMATION_REQUIRED`.
 - Full FreeLip hotkey-to-target-app verification still needs app wiring: `WINDOWS_FREELIP_INTEGRATION_REQUIRED`.
 
@@ -52,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run
 
 The generated folder is `debug-dist/FreeLip-debug/`. It contains `app/`, `sidecar/`, `python/`, `config/`, `models/`, and `logs/`. Check `logs/startup-diagnostics.json`, `logs/sidecar-startup-diagnostics.json`, and `logs/sidecar.log` first when debugging startup or sidecar failures. `CHECKPOINT_MISSING` remains expected until local approved checkpoints are installed under the configured model path. Add `-FixtureMode` only for deterministic sidecar contract checks; fixture mode always reports a fixture backend and must not be used for real checkpoint/adapter validation.
 
-The frontend now separates three states: CNVSRC runtime readiness from `/model/status`, camera preview permission from WebView `getUserMedia`, and real recognition from `/decode`. The app may auto-start the camera preview, but it must continue to report `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` until live ROI frames are available and sent to `/decode` with a non-fixture response.
+The frontend now separates CNVSRC runtime readiness from `/model/status`, camera preview permission from WebView `getUserMedia`, local clip ROI ingest via `/roi/clips`, and real recognition candidates from `/decode`. The first live path records a short normalized local camera clip and returns an adapter-compatible `local://path/...` reference for `/decode`; if that capture path is unavailable, the UI reports `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED`. Because it does not yet prove mouth landmarks, its quality flags remain conservative and auto-insert stays disabled until landmark cropping is added.
 
 For approved local model artifacts, omit `-FixtureMode` and use the same environment variables as the readiness gate:
 
@@ -67,7 +67,7 @@ $env:FREELIP_MAVSR2025_CHECKPOINT = "C:\path\to\approved\mavsr2025.ckpt"
 Run these from the repository root after preparing real Windows hardware and model artifacts:
 
 ```powershell
-# Windows camera/ROI smoke: expect failure until camera implementation is wired.
+# Windows camera/ROI smoke: requires Windows camera hardware, WebView clip capture, and real model artifacts.
 pwsh -File scripts/e2e/camera_roi_smoke.ps1
 
 # Windows UI automation/full-loop smokes: expect integration-required output until app wiring is complete.
@@ -93,7 +93,7 @@ cargo test --workspace
 | `CHECKPOINT_MISSING` | Local CNVSRC/MAVSR artifacts are absent | Install approved checkpoints locally; do not commit them |
 | `RUNTIME_IMPORT_FAILED` | PyTorch/CUDA or the CNVSRC runtime adapter is unavailable | Install the official baseline runtime and set `FREELIP_CNVSRC2025_RUNTIME_ADAPTER` |
 | `WINDOWS_CAMERA_REQUIRED` | Camera test ran outside Windows | Rerun on Windows hardware |
-| `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` | Windows camera APIs exist but Rust capture is unwired | Complete camera integration before acceptance |
+| `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` | Camera preview is available but MediaRecorder/canvas ROI clip capture is unavailable | Rerun in the Windows debug app with WebView camera capture support |
 | `WINDOWS_UI_AUTOMATION_REQUIRED` | Linux/WSL cannot prove target-app insertion | Rerun Windows UI smoke after integration |
 | `WINDOWS_FREELIP_INTEGRATION_REQUIRED` | Script cannot drive the real app loop yet | Wire FreeLip app/hotkey path before claiming E2E |
 
