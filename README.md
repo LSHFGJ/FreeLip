@@ -17,7 +17,7 @@ FreeLip is a Windows desktop MVP for local Chinese visual speech recognition (VS
 | Area | Status | Blocker |
 | --- | --- | --- |
 | Model readiness | Blocked locally | `CHECKPOINT_MISSING` until real checkpoints are installed; `RUNTIME_IMPORT_FAILED` until the CNVSRC runtime adapter is configured |
-| Camera capture | Windows-only | `WINDOWS_CAMERA_REQUIRED` and `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` |
+| Camera capture | Windows-only | The debug app auto-attempts local camera preview; live ROI capture still reports `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` until camera frames are converted into `/decode` ROI requests |
 | UI automation | Windows-only | `WINDOWS_UI_AUTOMATION_REQUIRED` |
 | End-to-end app loop | Integration pending | `WINDOWS_FREELIP_INTEGRATION_REQUIRED` |
 
@@ -85,6 +85,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run
 ```
 
 The bundle keeps the app, Python sidecar source, debug config, model placeholder directory, and logs in one folder so failures are easy to inspect. It is unsigned, internal-only, does not include model checkpoints, and should report `CHECKPOINT_MISSING` until approved local model artifacts are installed. Add `-FixtureMode` only when you want deterministic contract fixtures; fixture mode never validates real model inference.
+
+When launched in the Windows debug app, FreeLip automatically attempts to start a muted local camera preview. Windows/WebView2 may still ask for camera permission, and denial or missing hardware is reported in the camera status panel. A ready model plus camera preview is not the same as recognition: real VSR requires a live ROI request posted to `/decode` and a non-fixture candidate response.
 
 To test approved local checkpoints, omit `-FixtureMode` and set the readiness-gate environment variables before launching the sidecar or app:
 

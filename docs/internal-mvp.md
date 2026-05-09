@@ -11,7 +11,7 @@ FreeLip is a local Windows desktop VSR MVP. The app shell is Tauri/Rust, the sid
 - Target hardware: Windows desktop or laptop with a camera, GPU-capable VSR runtime where available, and local storage for model artifacts.
 - Linux/WSL can run contracts, fixture replay, docs checks, and most Python/Rust tests.
 - Real camera capture requires Windows: `WINDOWS_CAMERA_REQUIRED`.
-- Rust camera wiring is not complete: `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED`.
+- The debug app auto-attempts WebView camera preview after launch, but live ROI capture remains incomplete: `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED`.
 - Real Notepad/browser/editor UI automation cannot be proven on Linux/WSL: `WINDOWS_UI_AUTOMATION_REQUIRED`.
 - Full FreeLip hotkey-to-target-app verification still needs app wiring: `WINDOWS_FREELIP_INTEGRATION_REQUIRED`.
 
@@ -51,6 +51,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File debug-dist/FreeLip-debug/run
 ```
 
 The generated folder is `debug-dist/FreeLip-debug/`. It contains `app/`, `sidecar/`, `python/`, `config/`, `models/`, and `logs/`. Check `logs/startup-diagnostics.json`, `logs/sidecar-startup-diagnostics.json`, and `logs/sidecar.log` first when debugging startup or sidecar failures. `CHECKPOINT_MISSING` remains expected until local approved checkpoints are installed under the configured model path. Add `-FixtureMode` only for deterministic sidecar contract checks; fixture mode always reports a fixture backend and must not be used for real checkpoint/adapter validation.
+
+The frontend now separates three states: CNVSRC runtime readiness from `/model/status`, camera preview permission from WebView `getUserMedia`, and real recognition from `/decode`. The app may auto-start the camera preview, but it must continue to report `WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED` until live ROI frames are available and sent to `/decode` with a non-fixture response.
 
 For approved local model artifacts, omit `-FixtureMode` and use the same environment variables as the readiness gate:
 
