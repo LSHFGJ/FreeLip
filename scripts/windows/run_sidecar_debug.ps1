@@ -134,8 +134,9 @@ function Resolve-FreeLipPythonExe {
 
   $condaPrefix = [Environment]::GetEnvironmentVariable("CONDA_PREFIX", "Process")
   if (-not [string]::IsNullOrWhiteSpace($condaPrefix)) {
+    $condaEnvName = Split-Path -Leaf $condaPrefix
     $condaPython = Join-Path $condaPrefix "python.exe"
-    if (Test-Path $condaPython) {
+    if ($condaEnvName -ieq "freelip" -and (Test-Path $condaPython)) {
       return [ordered]@{ path = $condaPython; source = "CONDA_PREFIX" }
     }
   }

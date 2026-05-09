@@ -247,6 +247,21 @@ assertContains(
   "model status copy derived from shared sidecar config",
 );
 assertContains(
+  "src/sidecarConfig.ts",
+  "/decode",
+  "frontend sidecar decode endpoint config",
+);
+assertContains(
+  "src/cameraRecognition.ts",
+  "WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED",
+  "honest ROI integration blocker when preview is not enough",
+);
+assertNotContains(
+  "src/main.ts",
+  "Request camera preview",
+  "manual camera request button copy",
+);
+assertContains(
   "python/freelip_vsr/sidecar.py",
   "default=18765",
   "Python sidecar CLI default port aligned with Windows-safe debug port",
@@ -330,6 +345,16 @@ assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
   "CONDA_PREFIX",
   "active Conda environment Python fallback for model runtime debugging",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  'Split-Path -Leaf $condaPrefix',
+  "active Conda prefix must be identified by environment name before selection",
+);
+assertContains(
+  "scripts/windows/run_sidecar_debug.ps1",
+  '-ieq "freelip"',
+  "base Conda prefix must not mask the dedicated FreeLip environment",
 );
 assertContains(
   "scripts/windows/run_sidecar_debug.ps1",
