@@ -252,6 +252,21 @@ assertContains(
   "frontend sidecar decode endpoint config",
 );
 assertContains(
+  "src/sidecarConfig.ts",
+  "/roi/clips",
+  "frontend sidecar ROI clip ingest endpoint config",
+);
+assertContains(
+  "python/freelip_vsr/sidecar.py",
+  'path == "/roi/clips"',
+  "protected sidecar ROI clip ingest route",
+);
+assertContains(
+  "python/freelip_vsr/sidecar.py",
+  "local://path/",
+  "ROI ingest returns adapter-compatible local path references",
+);
+assertContains(
   "src/cameraRecognition.ts",
   "WINDOWS_CAMERA_IMPLEMENTATION_REQUIRED",
   "honest ROI integration blocker when preview is not enough",
